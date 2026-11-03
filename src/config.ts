@@ -21,4 +21,9 @@ export const config = {
   launchLabel: "Precio de lanzamiento",
 
   contactEmail: "hola@tudominio.com",
+
+  // Bot de WhatsApp (piloto). URL /exec del Apps Script del bot y número de WhatsApp
+  // en formato internacional sin "+" ni espacios (ej. 15551234567). Vacíos = bot no publicado aún.
+  botScriptUrl: "",
+  botWhatsapp: "",
 };

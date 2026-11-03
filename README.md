@@ -97,6 +97,62 @@ Sirven para revisar el tablero como cliente, para la beta y para aliados, sin pa
 - Quienes se inscriben en la beta (formulario de inicio) quedan en la hoja **Beta**. Para darles acceso gratis, créales un código de cortesía (arriba). Si prefieres que pasen por el checkout, crea en Lemon Squeezy un **descuento del 100 %** (Store → Discounts) limitado en usos: el pedido sale por USD 0 y Apps Script les manda su clave como a cualquier comprador.
 - Los comentarios del tablero llegan a la hoja **Comentarios**, con la columna "Autoriza publicar". Publica en el sitio solo los que tengan "Sí", con el nombre tal como la persona lo escribió. No uses comentarios inventados: además de engañoso, en Colombia y la mayoría de países es publicidad engañosa.
 
+## Bot de WhatsApp (piloto)
+
+La persona escribe "almuerzo 25 mil" por WhatsApp; el bot lo entiende, lo guarda y responde con la confirmación. En **Mis movimientos** (`/movimientos`, enlace personal que da el bot) ve su mes graficado y puede llevarlo a su tablero.
+
+```
+WhatsApp ──► Meta ──► Relevo (Cloudflare Worker) ──► Apps Script del bot ──► Hoja de cálculo
+                       verifica la firma               entiende el mensaje (IA + reglas)
+                       responde 200 al instante        responde por WhatsApp
+Sitio /movimientos ◄──────────── GET ?action=movimientos&t=enlace personal
+```
+
+| Carpeta | Qué es |
+| --- | --- |
+| `apps-script-bot/Bot.gs` | El bot, en un solo archivo de Apps Script (proyecto aparte del de pagos) |
+| `relay/worker.js` | El relevo que recibe los avisos de Meta |
+| `src/components/bot/` y `src/lib/bot-categories.ts` | La página Mis movimientos |
+
+Ejemplo sin bot: `/movimientos?ejemplo`.
+
+### Lo que entiende
+- Gastos e ingresos en lenguaje natural, varios por mensaje: "taxi 12.000 y café 6.000", "me pagaron la quincena 2,1 millones", "ayer súper 85 mil".
+- Montos coloquiales: mil, k, lucas, palos, millones, medio millón, y separadores de cualquier país.
+- Comandos: **resumen**, **cuánto llevo en restaurantes**, **borrar** (último), **tablero** (enlace), **nuevo enlace**, **borrar mis datos** (pide confirmación), el nombre de una categoría para corregir el último ("transporte") y el nombre de un país para cambiar la moneda.
+- La IA (Claude) interpreta el mensaje, pero **nunca pone montos**: cada monto se compara con los que de verdad aparecen en el texto. Si la IA no está configurada o falla, entran reglas propias.
+
+### Puesta en marcha (unos 45 minutos)
+1. **Apps Script del bot.** Proyecto nuevo en [script.google.com](https://script.google.com) con la cuenta de la marca. Pega `apps-script-bot/Bot.gs` y `apps-script-bot/appsscript.json`. Ejecuta `setup` y copia el **RELAY_SECRET** que aparece en el registro. Implementa como aplicación web (ejecutar como *Yo*, acceso *Cualquier persona*) y copia la URL `/exec`.
+2. **Claude (IA).** En [console.anthropic.com](https://console.anthropic.com) crea una API key, carga un saldo pequeño (USD 5 alcanzan para miles de mensajes del piloto) y ponla en la propiedad `ANTHROPIC_API_KEY`. Sin clave, el bot funciona solo con reglas.
+3. **Meta.** En [developers.facebook.com](https://developers.facebook.com) → *Crear app* → tipo *Empresa* → agrega el producto **WhatsApp**. En *API Setup* verás un **número de prueba**, su **Phone number ID** y un token temporal. Agrega hasta 5 números de destinatarios (el tuyo y tus beta testers).
+   - Para un token que no vence: *Business settings → Users → System users* → crea uno, asígnale la app con permiso `whatsapp_business_messaging` y genera el token.
+   - Copia también el **App Secret** (*App settings → Basic*).
+4. **Relevo.** En [dash.cloudflare.com](https://dash.cloudflare.com) → *Workers & Pages → Create → Worker*, pega `relay/worker.js` y publícalo. En *Settings → Variables and Secrets* crea `VERIFY_TOKEN` (un texto que inventes), `META_APP_SECRET`, `APPS_SCRIPT_URL` (la `/exec`) y `RELAY_SECRET`.
+5. **Webhook.** En Meta → WhatsApp → *Configuration*: Callback URL = la URL del Worker, Verify token = tu `VERIFY_TOKEN`. Suscríbete al campo **messages**.
+6. **Propiedades del bot** (Apps Script → Configuración → Propiedades del script):
+
+| Propiedad | Valor |
+| --- | --- |
+| `WA_TOKEN` | Token de Meta (el permanente del paso 3) |
+| `WA_PHONE_NUMBER_ID` | Phone number ID del número de WhatsApp |
+| `ANTHROPIC_API_KEY` | Clave de Claude |
+| `SITE_URL` | Dirección del sitio, sin `/` al final |
+| `BETA_NUMEROS` | Números autorizados, separados por coma (ej. `573001234567`). Vacío = cualquiera |
+| `MAX_MENSAJES_DIA` | Tope de mensajes por persona al día (control de costos; 60 por defecto) |
+| `LLM_MODEL` / `GRAPH_VERSION` | Modelo de Claude y versión de la API de Meta (vienen con un valor por defecto) |
+
+7. **Sitio.** En `src/config.ts` pega `botScriptUrl` (la `/exec` del bot) y `botWhatsapp` (el número, solo dígitos).
+8. **Prueba.** Escríbele "hola" al número de prueba desde un número autorizado. También puedes ejecutar `probarBot` en Apps Script: simula una conversación y deja el resultado en la hoja.
+
+### Costos del piloto
+- WhatsApp: desde el 1 de octubre de 2026 Meta cobra las respuestas de servicio, pero cada número tiene **1.000 mensajes de servicio gratis al mes**. Un piloto de 5–20 personas cabe ahí.
+- Claude: centavos de dólar por cada cien mensajes con el modelo Haiku.
+- Cloudflare Workers y Apps Script: planes gratuitos.
+
+### Privacidad
+Los movimientos del bot se guardan en la hoja de la marca (a diferencia del tablero, donde las cifras viven en el navegador). Antes de abrir el bot al público: actualizar la política de privacidad, identificar al responsable (la SAS) y mantener el comando **borrar mis datos**.
+
 ## Antes de publicar
 - [ ] Revisar las páginas de privacidad y aviso legal (`src/app/privacidad`, `src/app/aviso-legal`) con un abogado. La ley colombiana de datos (Ley 1581) exige identificar al responsable del tratamiento: si no quieres que aparezca tu nombre, ese responsable puede ser una empresa (por ejemplo, una SAS) a nombre de la marca.
 - [ ] Reemplazar `tudominio.com` en `public/robots.txt` y `public/sitemap.xml`.

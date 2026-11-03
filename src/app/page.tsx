@@ -86,7 +86,7 @@ export default function Home() {
           <div className="rounded-[28px] bg-[#0f1a17] px-6 py-12 text-[#eef3f1] md:px-12">
             <p className="text-sm font-semibold text-brand-bright">Estamos en beta</p>
             <h2 className="mt-2 max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-4xl">Prueba el tablero completo sin costo y cuéntanos tu experiencia</h2>
-            <p className="mt-3 max-w-2xl text-[#b4c0bb]">Buscamos a las primeras personas que lo usen en serio. A cambio de tu opinión sincera, te damos acceso completo sin costo.</p>
+            <p className="mt-3 max-w-2xl text-[#b4c0bb]">Buscamos a las primeras personas que lo usen en serio. A cambio de tu opinión sincera, te damos acceso completo sin costo, incluido el nuevo asistente de WhatsApp: escribes “almuerzo 25 mil” y queda registrado en tu tablero.</p>
             <BetaForm />
           </div>
         </section>
