@@ -15,6 +15,8 @@ import { ScoreGauge } from "@/components/ui/score-gauge"
 import { TimelineContent } from "@/components/ui/timeline-content"
 import { cn } from "@/lib/utils"
 import { store } from "@/lib/store"
+import { PREMIUM_FEATURES, trialText } from "@/lib/plans"
+import { PlanPicker } from "@/components/site/plan-picker"
 import { countryFromText } from "@/lib/money"
 import { setVisitorCountry } from "@/lib/use-country"
 
@@ -48,15 +50,6 @@ function load(): Saved | null {
 }
 function save(v: Saved | null) {
   try { sessionStorage.setItem(STORE_KEY, JSON.stringify(v)) } catch { /* sin almacenamiento */ }
-}
-
-function checkoutUrl(data: Saved, email?: string) {
-  if (!config.checkoutPersonal) return ""
-  let url = config.checkoutPersonal + (config.checkoutPersonal.includes("?") ? "&" : "?") +
-    encodeURIComponent("checkout[custom][r]") + "=" + data.code
-  if (data.pais) url += "&" + encodeURIComponent("checkout[custom][pais]") + "=" + encodeURIComponent(data.pais)
-  if (email) url += "&" + encodeURIComponent("checkout[email]") + "=" + encodeURIComponent(email)
-  return url
 }
 
 export function Quiz() {
@@ -377,73 +370,39 @@ function ResultView({ data, onRestart }: { data: Saved; onRestart: () => void })
 }
 
 function Offer({ data, email }: { data: Saved; email: string }) {
-  const buy = checkoutUrl(data, email)
   return (
     <TimelineContent className="mt-12 overflow-hidden rounded-3xl shadow-xl">
       <div id="oferta" className="bg-[#0f1a17] px-6 py-7 text-[#eef3f1] md:px-8">
-        {config.priceRegular && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{config.launchLabel}</span>}
-        <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Desbloquea tu tablero financiero</h2>
-        <p className="max-w-[60ch] text-[#b4c0bb]">Registra tus cifras del mes y obtén tu excedente real, la distribución de tus gastos, tu plan de desendeudamiento y en qué instrumentos ubicar tu excedente según tu objetivo.</p>
+        {trialText && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{trialText}</span>}
+        <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Convierte este diagnóstico en un plan que se cumple</h2>
+        <p className="max-w-[60ch] text-[#b4c0bb]">Con {config.premiumName} escribes tus gastos por WhatsApp y tu tablero te muestra cada día cuánto te queda, cómo vas con tu presupuesto y qué hacer con tu dinero.</p>
       </div>
-      <div className="rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:px-8">
-        <PreviewPages />
-        <ul className="mb-6 mt-6 space-y-3">
-          {[
-            ["Plan para tu excedente:", "asignación a fondo de emergencia, deuda y metas, con los instrumentos adecuados y un simulador de interés compuesto."],
-            ["Distribución de tus gastos:", "excedente mensual, tasa de ahorro y gastos por categoría: esenciales, importantes y discrecionales."],
-            ["Plan de desendeudamiento:", "qué deuda priorizar, en cuántos meses quedas libre y cuánto te ahorras en intereses."],
-            ["Plan de 30 días e informe en PDF:", "8 acciones semana por semana y tu resultado explicado área por área."],
-          ].map(([b, t]) => (
-            <li key={b} className="flex gap-3 text-ink-2">
+      <div className="grid gap-8 rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:grid-cols-[1.1fr_.9fr] md:px-8">
+        <ul className="space-y-3">
+          {PREMIUM_FEATURES.map((f) => (
+            <li key={f.title} className="flex gap-3 text-ink-2">
               <span className="mt-0.5 grid size-6 shrink-0 place-content-center rounded-full border border-primary"><Check className="size-3.5 text-primary" /></span>
-              <span><strong className="text-foreground">{b}</strong> {t}</span>
+              <span><strong className="text-foreground">{f.title}:</strong> {f.text}</span>
             </li>
           ))}
+          <li className="flex gap-3 text-ink-2">
+            <span className="mt-0.5 grid size-6 shrink-0 place-content-center rounded-full border border-primary"><Check className="size-3.5 text-primary" /></span>
+            <span><strong className="text-foreground">Tu plan de 30 días e informe en PDF</strong> con el resultado de este diagnóstico.</span>
+          </li>
         </ul>
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl bg-muted p-5">
-          <div className="font-num text-5xl font-bold leading-none tracking-tight">
-            {config.currency} {config.pricePersonal}
-            <small className="mt-1 block text-xs font-bold tracking-normal text-muted-foreground">pago único</small>
+        <div className="rounded-2xl bg-muted p-5">
+          <PlanPicker test={{ code: data.code, pais: data.pais }} email={email} />
+          <div className="mt-4 grid gap-1.5 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-primary" />Pago seguro con Lemon Squeezy</span>
+            <span className="flex items-center gap-1.5"><CreditCard className="size-3.5 text-primary" />Tarjeta y otros medios en el checkout</span>
+            <span className="flex items-center gap-1.5"><Mail className="size-3.5 text-primary" />Acceso por correo en minutos</span>
           </div>
-          {config.priceRegular && <span className="flex-[1_1_160px] text-sm font-bold text-ink-2">Sube a {config.currency} {config.priceRegular} cuando termine el lanzamiento</span>}
-          {buy
-            ? <Button asChild size="lg" className="w-full md:w-auto"><a href={buy}>Quiero mi plan completo <ArrowRight /></a></Button>
-            : <Button size="lg" className="w-full md:w-auto" disabled title="Falta configurar el enlace de pago en src/config.ts">Pago no configurado</Button>}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
-          <span className="flex items-center gap-1.5"><CreditCard className="size-4 text-primary" />Tarjeta y otros medios en el checkout</span>
-          <span className="flex items-center gap-1.5"><Mail className="size-4 text-primary" />Llega a tu correo en minutos</span>
-          <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus cifras se quedan en tu navegador</span>
         </div>
       </div>
     </TimelineContent>
   )
 }
 
-function PreviewPages() {
-  // Miniatura del tablero (decorativa)
-  return (
-    <div className="grid grid-cols-6 gap-2 rounded-2xl border bg-muted/40 p-3" aria-hidden="true">
-      {[["Excedente mensual", "bg-verde"], ["Tasa de ahorro", "bg-amarillo"], ["Cobertura", "bg-amarillo"]].map(([t, c]) => (
-        <div key={t} className="col-span-2 rounded-xl border bg-card p-2.5">
-          <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground">{t}<span className={cn("size-1.5 rounded-full", c)} /></div>
-          <div className="mt-1.5 h-3 w-3/4 rounded bg-foreground/80" />
-        </div>
-      ))}
-      <div className="col-span-4 grid h-28 grid-cols-5 grid-rows-2 gap-1 rounded-xl border bg-card p-2">
-        <div className="col-span-2 row-span-2 rounded-md bg-[#0e7c66]" />
-        <div className="col-span-2 rounded-md bg-[#8fd3bd]" />
-        <div className="rounded-md bg-[#f2b84b]" />
-        <div className="rounded-md bg-[#d6453d]" />
-        <div className="col-span-2 rounded-md bg-[#f2b84b]/70" />
-      </div>
-      <div className="col-span-2 grid h-28 place-items-center rounded-xl border bg-card">
-        <svg viewBox="0 0 60 60" className="size-20"><polygon points="30,8 50,24 43,50 17,50 10,24" fill="none" className="stroke-border" /><polygon points="30,16 44,26 38,44 20,46 16,27" className="fill-primary/20 stroke-primary" strokeWidth="1.5" /></svg>
-      </div>
-    </div>
-  )
-}
 
 function LeadForm({ data, email, setEmail }: { data: Saved; email: string; setEmail: (v: string) => void }) {
   const [consent, setConsent] = React.useState(false)

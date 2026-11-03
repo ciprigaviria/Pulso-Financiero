@@ -13,7 +13,7 @@ const gasSrc = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 
 
 // ---- Servicios de Google simulados ----
 const sent = [], rows = { Leads: [['h']], Pedidos: [['h']], Errores: [['h']] };
-const props = { DB_ID: 'db', LS_API_KEY: 'k', LS_STORE_ID: '42', CHECKOUT_PERSONAL: 'https://x.lemonsqueezy.com/buy/abc', SITE_URL: 'https://pulso.test' };
+const props = { DB_ID: 'db', LS_API_KEY: 'k', LS_STORE_ID: '42', CHECKOUT_ANUAL: 'https://x.lemonsqueezy.com/buy/abc', SITE_URL: 'https://pulso.test' };
 let orderStatus = 'paid', orderStore = 42, licenseKeys = ['ABCD-1234-EFGH-5678'], licenseCalls = 0;
 const LICENSES = {
   'GOOD-KEY-0001': { valid: true, license_key: { status: 'active' }, meta: { store_id: 42, product_id: 7 } },
@@ -140,8 +140,8 @@ assert.equal(post({ type: 'lead', email: 'a@b.com', r: worst, pais: 'Perú', con
 assert.equal(sent.length, 1);
 assert.ok(sent[0].htmlBody.includes('checkout%5Bcustom%5D%5Br%5D=' + worst));
 assert.ok(sent[0].htmlBody.includes('checkout%5Bcustom%5D%5Bpais%5D=Per%C3%BA'));
-assert.ok(sent[0].htmlBody.includes('USD 9') && sent[0].htmlBody.includes('Lo que revelan'));
-assert.ok(sent[0].htmlBody.includes('https://pulso.test/tablero/?ejemplo') && !/archivo de presupuesto/.test(sent[0].htmlBody));
+assert.ok(sent[0].htmlBody.includes('USD 44,99') && sent[0].htmlBody.includes('7 días gratis') && sent[0].htmlBody.includes('Lo que revelan'));
+assert.ok(sent[0].htmlBody.includes('https://pulso.test/#precios') && !/archivo de presupuesto|pago único/.test(sent[0].htmlBody));
 assert.equal(rows.Leads.at(-1)[7], 'Perú');
 post({ type: 'lead', email: 'a@b.com', r: best, consent: true });
 const third = post({ type: 'lead', email: 'a@b.com', r: best, consent: true });

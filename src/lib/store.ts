@@ -1,5 +1,6 @@
 // Todo lo que la persona guarda vive en su navegador (localStorage). Nada se envía a un servidor.
 import { config } from "@/config"
+import { PLANS, type PlanId } from "@/lib/plans"
 import type { FinanceData } from "@/lib/finance"
 
 const K = { test: "pulso_test_v1", data: "pulso_tablero_v1", license: "pulso_licencia_v1", checks: "pulso_plan_v1", country: "pulso_pais_v1" }
@@ -26,10 +27,11 @@ export const store = {
   clearAll: () => Object.values(K).forEach((k) => write(k, null)),
 }
 
-/** Enlace de compra con las respuestas del test (y el correo, si lo hay). */
-export function checkoutUrl(t: SavedTest | null, email?: string) {
-  if (!config.checkoutPersonal) return ""
-  let url = config.checkoutPersonal
+/** Enlace de compra del plan elegido, con las respuestas del test (y el correo, si lo hay). */
+export function checkoutUrl(t: SavedTest | null, email?: string, plan: PlanId = "anual") {
+  const base = PLANS[plan].checkout
+  if (!base) return ""
+  let url = base
   const add = (k: string, v: string) => { url += (url.includes("?") ? "&" : "?") + encodeURIComponent(k) + "=" + encodeURIComponent(v) }
   if (t?.code) add("checkout[custom][r]", t.code)
   if (t?.pais) add("checkout[custom][pais]", t.pais)

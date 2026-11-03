@@ -13,6 +13,8 @@ import { DashboardView } from "@/components/dashboard/dashboard-view"
 import { CountryPicker } from "@/components/site/country-picker"
 import { SAMPLE } from "@/lib/sample"
 import { useSampleData } from "@/lib/use-country"
+import { annualPerMonth, fmtUsd, trialText } from "@/lib/plans"
+import { config } from "@/config"
 
 /** Muestra un componente ancho escalado para que quepa en el contenedor, como una captura viva. */
 function ScaledPreview({ children, width, visibleHeight }: { children: React.ReactNode; width: number; visibleHeight: number }) {
@@ -45,7 +47,7 @@ export function Hero() {
         <aside className="mb-8 inline-flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs backdrop-blur-sm">
           <span className="font-semibold text-white">Finanzas para no financieros</span>
           <span className="hidden text-white/30 sm:inline">·</span>
-          <span className="text-white/60">Ahora en la moneda de tu país</span>
+          <span className="text-white/60">Nuevo: registra tus gastos por WhatsApp</span>
           <Link href="/tablero?ejemplo" className="flex items-center gap-1 text-white/60 transition-colors hover:text-white">
             Ver ejemplo <ArrowRight className="size-3" />
           </Link>
@@ -53,18 +55,18 @@ export function Hero() {
 
         <h1 className="max-w-5xl text-[2.6rem] font-semibold leading-[1.04] tracking-[-0.04em] md:text-6xl lg:text-[4.25rem]"
           style={{ background: "linear-gradient(to bottom, #fff 30%, rgba(255,255,255,.62))", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Conoce tu excedente mensual <br className="hidden sm:block" />y <span className="font-serif font-normal italic tracking-[-0.01em]">ponlo a trabajar</span>
+          Escribe tus gastos por WhatsApp. <br className="hidden sm:block" /><span className="font-serif font-normal italic tracking-[-0.01em]">Pulso hace el resto.</span>
         </h1>
 
         <p className="mt-6 max-w-2xl text-base text-white/60 md:text-lg">
-          Tu excedente es lo que te queda cada mes después de gastos y deudas. Haz tu diagnóstico gratis en 5 minutos y activa tu tablero: distribución de gastos, plan de desendeudamiento y en qué instrumentos ubicar tu excedente.
+          Mandas “almuerzo 25 mil” y tu tablero se actualiza: gastos, ingresos, cumplimiento de tu presupuesto, cuánto te queda y recomendaciones de ahorro e inversión. Empieza con un diagnóstico gratis de 5 minutos.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="white" className="rounded-lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/tablero?ejemplo">Ver un tablero de ejemplo</Link></Button>
+          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/#como-funciona">Ver cómo funciona</Link></Button>
         </div>
-        <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Tus cifras se quedan en tu navegador · Gratis y sin registro</p>
+        <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Diagnóstico gratis y sin registro · {config.premiumName} desde {fmtUsd(annualPerMonth)} al mes{trialText ? ` · ${trialText}` : ""}</p>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}
@@ -81,6 +83,10 @@ export function Hero() {
               </ScaledPreview>
             </div>
           </div>
+        </div>
+        <div aria-hidden="true" className="pointer-events-none absolute right-2 top-[15.5rem] z-10 hidden w-64 flex-col gap-2 lg:flex xl:-right-8">
+          <div className="self-end rounded-xl rounded-tr-sm bg-[#d9fdd3] px-3 py-2 text-[13px] text-[#111b21] shadow-xl">almuerzo 25 mil</div>
+          <div className="rounded-xl rounded-tl-sm bg-white px-3 py-2 text-[13px] text-[#111b21] shadow-xl">✓ Gasto · Restaurantes<br /><span className="text-[#667781]">Vas en el 62% de tu presupuesto</span></div>
         </div>
         <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent via-black/85 to-black" />
         <div className="relative -mt-24 flex flex-wrap items-center justify-center gap-3">

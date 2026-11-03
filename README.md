@@ -1,6 +1,6 @@
 # Pulso Financiero
 
-Plataforma con un test gratis de salud financiera personal y un **tablero personal** con visuales y recomendaciones. El test y una vista previa del tablero son gratis; el **tablero completo** se desbloquea con un pago único (Lemon Squeezy) y una clave de licencia que llega por correo desde Apps Script, junto con el informe PDF.
+Plataforma de finanzas personales: un **diagnóstico gratis** y **Pulso Premium** (USD 4,99 al mes o USD 44,99 al año, con 7 días gratis), que incluye un **asistente de WhatsApp** para registrar gastos e ingresos y un **tablero** con presupuesto, cuánto te queda y recomendaciones de ahorro e inversión. Los cobros los hace Lemon Squeezy; Apps Script entrega el acceso (clave de licencia) por correo.
 
 Las cifras de cada persona (ingresos, gastos, deudas) se guardan **solo en su navegador** (`localStorage`); nunca llegan al servidor. El tablero tiene un botón de respaldo para llevarlas a otro dispositivo.
 
@@ -59,10 +59,14 @@ En el repositorio: **Settings → Pages → Build and deployment → Source: Git
 5. Ejecuta `probarInforme` y revisa tu correo: debe llegar el correo de compra de ejemplo con el informe PDF (la clave de ese correo es de prueba y no desbloquea nada).
 
 ### 3. Lemon Squeezy (pago)
-1. Crea una tienda y un producto **Tablero completo**, pago único de USD 9 (precio de lanzamiento). No adjuntes archivos: la entrega la hace Apps Script. Cuando termine el lanzamiento, sube el precio a USD 29 aquí, en `src/config.ts` (`pricePersonal`) y en la propiedad `PRICE_PERSONAL` de Apps Script.
-   - En el producto activa **Generate license keys** (límite de activaciones: el que quieras, por ejemplo 3; sin vencimiento). Sin esto no hay clave y el tablero no se puede desbloquear.
+1. Crea una tienda y un producto **Pulso Premium** de tipo **suscripción** con dos variantes:
+   - **Mensual**: USD 4,99 cada mes.
+   - **Anual**: USD 44,99 cada año.
+   - En ambas, **Free trial**: 7 días.
+   - En el producto activa **Generate license keys** (límite de activaciones: por ejemplo 3). Sin esto no hay clave y el tablero no se puede desbloquear.
+   - No adjuntes archivos: la entrega la hace Apps Script. Si cambias precios o días de prueba, cámbialos también en `src/config.ts` y en las propiedades `PRICE_MONTHLY`, `PRICE_ANNUAL` y `TRIAL_DAYS` de Apps Script.
 2. En el producto, **Confirmation modal → Button link**: `https://<tu sitio>/gracias/`.
-3. Copia el enlace de compra del producto (**Share**).
+3. Copia el enlace de compra de cada variante (**Share**).
 4. **Settings → API**: crea una API key. **Settings → Stores**: copia el número de tu tienda (Store ID).
 5. **Settings → Webhooks → +**: URL = la de Apps Script terminada en `/exec` + `?src=ls`; evento: `order_created`. Escribe cualquier texto en "Signing secret" (Apps Script verifica el pedido directamente con la API).
 6. En Apps Script → **Configuración del proyecto → Propiedades del script**, completa:
@@ -73,14 +77,14 @@ En el repositorio: **Settings → Pages → Build and deployment → Source: Git
 | `LS_STORE_ID` | El número de tu tienda |
 | `LS_PRODUCT_ID` | El número del producto (opcional; si lo pones, solo se aceptan claves de ese producto) |
 | `CODIGOS_CORTESIA` | Códigos de membresía gratis, separados por coma (se llena solo con `crearCodigoCortesia`) |
-| `CHECKOUT_PERSONAL` | El enlace de compra del producto |
+| `CHECKOUT_ANUAL` | El enlace de compra de la variante anual (va en el correo del resumen gratis) |
 | `SITE_URL` | La dirección de tu sitio, sin `/` al final |
 | `BRAND_NAME` | El nombre final de la marca |
 | `REPLY_TO` | Correo al que llegan las respuestas (opcional) |
-| `PRICE_PERSONAL` y `PRICE_REGULAR` | Precio actual y precio después del lanzamiento, como aparecen en el correo (`USD 9` y `USD 29`) |
+| `PRICE_MONTHLY`, `PRICE_ANNUAL` y `TRIAL_DAYS` | Precios y días de prueba como aparecen en el correo (`USD 4,99`, `USD 44,99`, `7`) |
 
 ### 4. Conectar el sitio
-En GitHub abre `src/config.ts`, haz clic en el lápiz y pega `checkoutPersonal` (enlace de compra), `appsScriptUrl` (URL `/exec`) y `contactEmail`. Al hacer **Commit changes**, GitHub vuelve a compilar y publicar el sitio solo (pestaña **Actions**, 1–2 minutos).
+En GitHub abre `src/config.ts`, haz clic en el lápiz y pega `checkoutMonthly` y `checkoutAnnual` (enlaces de compra), `appsScriptUrl` (URL `/exec`) y `contactEmail`. Al hacer **Commit changes**, GitHub vuelve a compilar y publicar el sitio solo (pestaña **Actions**, 1–2 minutos).
 
 ### 5. Probar de punta a punta
 1. En Lemon Squeezy activa **Test mode** y haz una compra con la tarjeta de prueba `4242 4242 4242 4242`.

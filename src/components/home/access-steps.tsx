@@ -3,15 +3,15 @@ import { CreditCard, LayoutDashboard, Mail, PencilLine, RefreshCw, Smartphone } 
 import { cn } from "@/lib/utils"
 
 export const ACCESS_STEPS = [
-  { icon: CreditCard, title: "Pago único", text: "Con tarjeta u otros medios en el checkout seguro de Lemon Squeezy. Sin cuentas ni contraseñas." },
-  { icon: Mail, title: "Acceso por correo", text: "En un par de minutos recibes el botón “Abrir mi tablero”, tu clave de acceso y tu informe en PDF." },
-  { icon: PencilLine, title: "Registras tus cifras del mes", text: "Eliges tu país y moneda, y anotas ingresos, gastos por categoría y deudas. Son totales mensuales: unos 10 minutos con tu extracto bancario a la mano." },
-  { icon: LayoutDashboard, title: "Tu tablero, al instante", text: "Distribución de gastos, recomendaciones priorizadas, plan de desendeudamiento y asignación de tu excedente." },
+  { icon: CreditCard, title: "Eliges tu plan", text: "Mensual o anual, en el checkout seguro de Lemon Squeezy. Los primeros días son gratis." },
+  { icon: Mail, title: "Recibes tu acceso", text: "En un par de minutos llega un correo con el enlace a tu tablero, tu clave y el botón para abrir el asistente en WhatsApp." },
+  { icon: PencilLine, title: "Le escribes “hola” al asistente", text: "Detecta tu país y tu moneda. Desde ahí, cada gasto o ingreso que le escribas queda registrado y clasificado." },
+  { icon: LayoutDashboard, title: "Tu tablero se actualiza solo", text: "Gastos, ingresos, presupuesto, cuánto te queda y recomendaciones, cada vez que registras algo." },
 ]
 
 export const ACCESS_NOTES = [
-  { icon: RefreshCw, text: "Cada mes entras con el mismo enlace, actualizas tus cifras y das seguimiento a tu evolución." },
-  { icon: Smartphone, text: "¿Otro celular o computador? Entras con tu clave y cargas tu respaldo: un archivo que descargas desde el tablero con un clic." },
+  { icon: RefreshCw, text: "Cancela cuando quieras desde el correo de compra. Conservas el acceso hasta el final del periodo pagado." },
+  { icon: Smartphone, text: "Entra a tu tablero desde el celular o el computador con tu enlace personal." },
 ]
 
 export function AccessSteps({ compact = false, className }: { compact?: boolean; className?: string }) {

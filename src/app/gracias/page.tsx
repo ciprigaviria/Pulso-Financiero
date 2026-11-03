@@ -12,8 +12,8 @@ export default function Gracias() {
     <ProsePage>
       <div className="text-center">
         <CheckCircle2 className="mx-auto mb-4 size-14 text-primary" />
-        <h1>¡Gracias! Tu tablero está listo</h1>
-        <p className="text-lg">En unos minutos te llega un correo con el botón para abrir tu tablero, tu clave de acceso y tu informe en PDF.</p>
+        <h1>¡Bienvenido a {config.premiumName}!</h1>
+        <p className="text-lg">En unos minutos te llega un correo con el enlace a tu tablero, tu clave de acceso, el botón para abrir el asistente de WhatsApp y tu informe en PDF.</p>{config.botWhatsapp && <p><a href={`https://wa.me/${config.botWhatsapp}?text=Hola`}>Escríbele “hola” al asistente ahora</a></p>}
         <div className="my-7 rounded-2xl border bg-card p-6 text-left">
           <p className="!mb-0"><strong>¿No lo ves?</strong> Revisa la carpeta de spam o promociones. Si en 30 minutos no ha llegado, escríbenos a <a href={`mailto:${config.contactEmail}`}>{config.contactEmail}</a> con el correo que usaste al pagar.</p>
         </div>

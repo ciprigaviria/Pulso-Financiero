@@ -9,10 +9,12 @@ import * as S from "@/lib/scoring"
 import * as F from "@/lib/finance"
 import type { FinanceData } from "@/lib/finance"
 import { SAMPLE } from "@/lib/sample"
-import { checkoutUrl, sendForm, store, validateLicense, type SavedTest } from "@/lib/store"
+import { sendForm, store, validateLicense, type SavedTest } from "@/lib/store"
 import { DEFAULT_COUNTRY, countryFromNavigator, countryFromText } from "@/lib/money"
 import { useSampleData } from "@/lib/use-country"
 import { CountryPicker } from "@/components/site/country-picker"
+import { PlanPicker } from "@/components/site/plan-picker"
+import { PREMIUM_FEATURES } from "@/lib/plans"
 import { config } from "@/config"
 import { Button } from "@/components/ui/button"
 import { BentoCard, Radar, Tooltip, type TipApi } from "./charts"
@@ -152,7 +154,6 @@ function LockedView({ test, sample, onUnlock, unlockMsg }: { test: SavedTest | n
   const tip = React.useRef<TipApi | null>(null)
   const res = React.useMemo(() => { try { return test ? S.score(S.decode(test.code)) : null } catch { return null } }, [test])
   const [key, setKey] = React.useState("")
-  const buy = checkoutUrl(test)
   const first = res?.plan[0].actions[0]
   return (
     <Shell title="Tu tablero" subtitle={res ? "Vista previa gratis con tu resultado del test." : "Haz el test gratis para ver tu vista previa."}>
@@ -195,21 +196,16 @@ function LockedView({ test, sample, onUnlock, unlockMsg }: { test: SavedTest | n
         </div>
         <div className="absolute inset-0 flex items-start justify-center bg-gradient-to-b from-background/40 via-background/70 to-background/95 px-4 pt-16">
           <div className="w-full max-w-lg rounded-3xl border bg-card p-6 shadow-2xl sm:p-8">
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary"><Lock className="size-3.5" /> Tablero completo</div>
-            <h2 className="text-2xl font-extrabold tracking-tight">Tu plan financiero personal</h2>
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary"><Lock className="size-3.5" /> {config.premiumName}</div>
+            <h2 className="text-2xl font-extrabold tracking-tight">Tu plan financiero, al día por WhatsApp</h2>
             <ul className="mt-4 grid gap-2 text-sm text-ink-2">
-              {["Tu excedente mensual real y tu tasa de ahorro", "Asignación de tu excedente por objetivo y simulador de interés compuesto", "Distribución de tus gastos por categoría", "Plan de desendeudamiento y los intereses que te ahorras", "Fondo de emergencia y fecha estimada para completarlo", "Plan de 30 días e informe en PDF"].map((t) => (
-                <li key={t} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{t}</li>
+              {PREMIUM_FEATURES.map((f) => (
+                <li key={f.title} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{f.title}</li>
               ))}
             </ul>
-            <div className="mt-5 flex flex-wrap items-center gap-4">
-              <div className="font-num text-4xl font-bold">{config.currency} {config.pricePersonal}</div>
-              <div className="text-xs text-muted-foreground">pago único{config.priceRegular ? <><br />sube a {config.currency} {config.priceRegular} al terminar el lanzamiento</> : null}</div>
-            </div>
-            {buy ? <Button asChild size="lg" className="mt-4 w-full"><a href={buy}>Desbloquear mi tablero <ArrowRight /></a></Button>
-              : <Button size="lg" className="mt-4 w-full" disabled title="Falta configurar el enlace de pago en src/config.ts">Pago no configurado</Button>}
+            <PlanPicker test={test} className="mt-5" />
             <form className="mt-5 border-t pt-4" onSubmit={(e) => { e.preventDefault(); if (key.trim()) onUnlock(key) }}>
-              <label htmlFor="clave" className="flex items-center gap-1.5 text-sm font-semibold"><KeyRound className="size-4" />¿Ya compraste? Escribe tu clave</label>
+              <label htmlFor="clave" className="flex items-center gap-1.5 text-sm font-semibold"><KeyRound className="size-4" />¿Ya te suscribiste? Escribe tu clave</label>
               <div className="mt-2 flex gap-2">
                 <input id="clave" value={key} onChange={(e) => setKey(e.target.value)} placeholder="XXXXXXXX-XXXX-XXXX-XXXX" className="min-w-0 flex-1 rounded-xl border bg-card px-3 py-2.5 font-num text-sm outline-none focus:border-primary" />
                 <Button type="submit" variant="outline">Entrar</Button>

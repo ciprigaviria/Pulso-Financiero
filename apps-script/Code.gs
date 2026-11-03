@@ -15,7 +15,7 @@
  *    (con la cuenta de Google de la marca).
  *  - Ejecuta setup() una vez y autoriza los permisos.
  *  - En Configuración del proyecto > Propiedades del script, completa:
- *      LS_API_KEY, LS_STORE_ID, SITE_URL, CHECKOUT_PERSONAL, BRAND_NAME, REPLY_TO
+ *      LS_API_KEY, LS_STORE_ID, SITE_URL, CHECKOUT_ANUAL, BRAND_NAME, REPLY_TO
  *      y, si quieres, LS_PRODUCT_ID (para aceptar solo licencias de ese producto).
  *  - Implementa como aplicación web (ejecutar como: yo; acceso: cualquier persona).
  *  - Ejecuta probarInforme() para recibir un informe de ejemplo en tu correo.
@@ -31,10 +31,12 @@
 const DEFAULTS = {
   BRAND_NAME: 'Pulso Financiero',
   SITE_URL: 'https://tudominio.com',
-  CHECKOUT_PERSONAL: '',
+  CHECKOUT_ANUAL: '',
   REPLY_TO: '',
-  PRICE_PERSONAL: 'USD 9',
-  PRICE_REGULAR: 'USD 29',
+  PREMIUM_NAME: 'Pulso Premium',
+  PRICE_MONTHLY: 'USD 4,99',
+  PRICE_ANNUAL: 'USD 44,99',
+  TRIAL_DAYS: '7',
   LEADS_PER_EMAIL_PER_DAY: '2'
 };
 
@@ -363,7 +365,7 @@ function handleLead_(body) {
   if (recent >= limit) return { ok: true, throttled: true };
   if (MailApp.getRemainingDailyQuota() < 5) { logError_(new Error('Cuota de correo casi agotada'), email); return { ok: true, queued: false }; }
 
-  const buy = checkoutLink_(c.CHECKOUT_PERSONAL, body.r, email, pais);
+  const buy = checkoutLink_(c.CHECKOUT_ANUAL, body.r, email, pais);
   MailApp.sendEmail({
     to: email,
     subject: 'Tu resultado: ' + res.total + ' de 100 (' + res.level.name + ')',
@@ -470,7 +472,7 @@ function sendPackage_(email, name, code, pais, res, c, key) {
     .getAs('application/pdf').setName('Informe de salud financiera - ' + c.BRAND_NAME + '.pdf');
   MailApp.sendEmail({
     to: email,
-    subject: 'Tu tablero financiero está listo',
+    subject: 'Bienvenido a ' + c.PREMIUM_NAME,
     htmlBody: packageEmailHtml_(name, res, c, key),
     attachments: [pdf],
     name: c.BRAND_NAME,
@@ -481,7 +483,7 @@ function sendPackage_(email, name, code, pais, res, c, key) {
 function sendPackageWithoutTest_(email, name, c, key) {
   MailApp.sendEmail({
     to: email,
-    subject: 'Tu tablero financiero está listo: falta un paso',
+    subject: 'Bienvenido a ' + c.PREMIUM_NAME + ': falta un paso',
     htmlBody: packageEmailHtml_(name, null, c, key),
     name: c.BRAND_NAME,
     replyTo: c.REPLY_TO || undefined
@@ -536,11 +538,11 @@ function leadEmailHtml_(res, buy, c) {
     (res.potential ? '<p style="background:' + HEX.soft + ';padding:12px;border-radius:8px"><b>Tu potencial: de ' + res.potential.from + ' a ' + res.potential.to + '.</b> Si llevas ' + esc_(res.potential.area) + ' a verde, tu puntaje sube a ' + res.potential.to + '.</p>' : '') +
     '<h2 style="font-size:16px;margin-top:24px">Tu semáforo por área</h2>' + areasTable_(res) +
     (buy ? '<div style="margin-top:28px;padding:20px;border:2px solid ' + HEX.brand + ';border-radius:12px">' +
-      '<b style="font-size:16px">Mira tus números reales en tu tablero</b>' +
-      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">Tu tablero personal muestra cuánto te queda al mes, en qué se va tu dinero, cuándo completas tu fondo de emergencia y en qué orden pagar tus deudas, con recomendaciones hechas con tus números. Tus cifras se quedan en tu navegador.</p>' +
-      '<p style="margin:0 0 14px"><b style="font-size:22px">' + esc_(c.PRICE_PERSONAL) + '</b> pago único' + (c.PRICE_REGULAR ? ' · precio de lanzamiento (luego ' + esc_(c.PRICE_REGULAR) + ')' : '') + '</p>' +
-      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Desbloquear mi tablero</a>' +
-      '<p style="font-size:13px;margin:12px 0 0"><a href="' + esc_(boardLink_(c) + '?ejemplo') + '" style="color:' + HEX.brand + '">Ver un tablero de ejemplo</a></p></div>' : ''),
+      '<b style="font-size:16px">Convierte este diagnóstico en un plan que se cumple</b>' +
+      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">Con ' + esc_(c.PREMIUM_NAME) + ' escribes tus gastos por WhatsApp ("almuerzo 25 mil") y tu tablero te muestra cada día cuánto te queda, cómo vas con tu presupuesto y qué hacer con tu dinero, con recomendaciones de ahorro e inversión.</p>' +
+      '<p style="margin:0 0 14px"><b style="font-size:22px">' + esc_(c.PRICE_ANNUAL) + '</b> al año · o ' + esc_(c.PRICE_MONTHLY) + ' al mes' + (Number(c.TRIAL_DAYS) > 0 ? ' · <b>' + esc_(c.TRIAL_DAYS) + ' días gratis</b>, cancela cuando quieras' : '') + '</p>' +
+      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">' + (Number(c.TRIAL_DAYS) > 0 ? 'Empezar mi prueba gratis' : 'Suscribirme') + '</a>' +
+      '<p style="font-size:13px;margin:12px 0 0"><a href="' + esc_(String(c.SITE_URL).replace(/\/$/, '') + '/#precios') + '" style="color:' + HEX.brand + '">Ver planes y qué incluye</a></p></div>' : ''),
     c);
 }
 
@@ -558,11 +560,11 @@ function packageEmailHtml_(name, res, c, key) {
   const hello = name ? 'Hola, ' + esc_(name.split(' ')[0]) + ':' : 'Hola:';
   const privacy = '<p style="font-size:13px;color:' + HEX.ink2 + '">Tus cifras (ingresos, gastos, deudas) se guardan solo en tu navegador; nosotros no las vemos. Para usarlas en otro dispositivo, usa el botón "Respaldo" del tablero.</p>';
   const body = res
-    ? '<p>' + hello + '</p><p>Gracias por tu compra. Tu tablero completo ya está desbloqueado:</p>' + keyBoxHtml_(c, key) +
+    ? '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu acceso ya está activo:</p>' + keyBoxHtml_(c, key) +
       '<p><b>Cómo empezar:</b> abre el tablero, escribe tus ingresos, gastos y deudas del mes (unos 10 minutos) y mira tus recomendaciones. Después, sigue la semana 1 de tu plan.</p>' +
       '<p>Adjuntamos además tu <b>informe en PDF</b> con tu puntaje (' + res.total + ' de 100, ' + esc_(res.level.name) + '), tu semáforo y el plan de 30 días.</p>' +
       privacy + '<p>Si tienes dudas, responde a este correo.</p>'
-    : '<p>' + hello + '</p><p>Gracias por tu compra. Tu tablero ya está desbloqueado:</p>' + keyBoxHtml_(c, key) +
+    : '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu acceso ya está activo:</p>' + keyBoxHtml_(c, key) +
       '<p>No recibimos tus respuestas del test, así que falta un paso: <a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">haz el test aquí</a> (5 minutos) para que el tablero muestre tu radar y tu plan. Si quieres el informe en PDF, responde a este correo con tu puntaje.</p>' +
       privacy;
   return shell_(body, c);
@@ -667,7 +669,7 @@ function setup() {
     props.setProperty('DB_ID', ss.getId());
     console.log('Base de datos creada: ' + ss.getUrl());
   }
-  console.log('Listo. Ahora completa LS_API_KEY, LS_STORE_ID, SITE_URL y CHECKOUT_PERSONAL en Propiedades del script.');
+  console.log('Listo. Ahora completa LS_API_KEY, LS_STORE_ID, SITE_URL y CHECKOUT_ANUAL en Propiedades del script.');
 }
 
 /** Envía a tu propio correo un informe de ejemplo, sin pasar por el pago. */
