@@ -161,15 +161,15 @@ const AREA_MSG = {
 
 // Acciones por área, de la más básica a la más avanzada (alimentan el plan de 30 días).
 const AREA_ACTIONS = {
-  gastar: ['Anota todos tus gastos durante 2 semanas en la hoja "Presupuesto" de tu archivo.',
+  gastar: ['Anota todos tus gastos durante 2 semanas y pásalos a tu tablero.',
     'Clasifica cada gasto como esencial, importante o prescindible, y recorta primero los prescindibles.',
     'Programa el pago automático de tus cuentas fijas para el día en que recibes tu ingreso.',
     'Ponte un tope semanal para gastos variables (comida fuera, compras, salidas).'],
-  ahorrar: ['Calcula tu meta de fondo de emergencia en la hoja "Fondo de emergencia".',
+  ahorrar: ['Mira en tu tablero cuánto te falta para tu fondo de emergencia.',
     'Abre una cuenta de ahorro separada, solo para emergencias.',
     'Programa un ahorro automático el día de pago, aunque sea el 5% de tu ingreso.',
     'Lleva a tu fondo cualquier ingreso extra: primas, bonos o devoluciones.'],
-  deber: ['Lista todas tus deudas con saldo, tasa y cuota en la hoja "Deudas".',
+  deber: ['Registra todas tus deudas con saldo, tasa y cuota en tu tablero.',
     'Paga el mínimo en todas y pon todo lo extra en la de tasa más alta (método avalancha).',
     'Consulta tu historial en las centrales de riesgo y pide corregir cualquier error.',
     'Si una cuota no te alcanza, llama al banco antes de atrasarte y pide un acuerdo de pago.'],
@@ -177,8 +177,8 @@ const AREA_ACTIONS = {
     'Si alguien depende de ti, cotiza un seguro de vida a término; suele costar menos de lo que crees.',
     'Evalúa un plan complementario de salud si tu presupuesto lo permite.',
     'Guarda en un solo lugar tus pólizas y cómo reclamarlas, y cuéntale a alguien de confianza.'],
-  planear: ['Escribe 3 metas con monto y fecha en la hoja "Metas" de tu archivo.',
-    'Mira en el archivo cuánto debes ahorrar cada mes para cada meta.',
+  planear: ['Escribe 3 metas con monto y fecha.',
+    'Divide cada meta entre los meses que faltan: ese es tu ahorro mensual para ella.',
     'Revisa tu fondo de pensión: semanas o meses cotizados y proyección.',
     'Empieza un ahorro voluntario para el retiro, aunque sea pequeño.']
 };

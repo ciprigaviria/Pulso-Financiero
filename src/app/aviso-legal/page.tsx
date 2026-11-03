@@ -16,7 +16,7 @@ export default function AvisoLegal() {
       <h2>Resultados</h2>
       <p>El puntaje depende de tus respuestas y de un método general basado en el FinHealth Score de la Financial Health Network, adaptado por nosotros. No garantizamos resultados económicos.</p>
       <h2>Precio</h2>
-      <p>El Paquete Personal tiene un precio de lanzamiento de {config.currency} {config.pricePersonal}{config.priceRegular ? `, que subirá a ${config.currency} ${config.priceRegular} cuando termine el lanzamiento` : ""}. El precio que pagas es el que ves en el checkout.</p>
+      <p>El tablero completo tiene un precio de lanzamiento de {config.currency} {config.pricePersonal}{config.priceRegular ? `, que subirá a ${config.currency} ${config.priceRegular} cuando termine el lanzamiento` : ""}. El precio que pagas es el que ves en el checkout.</p>
       <h2>Compras</h2>
       <p>Los pagos los procesa Lemon Squeezy, que actúa como vendedor registrado y emite el comprobante. El paquete es un producto digital que se entrega por correo. Si no lo recibes o tienes un problema, escríbenos a {mail}.</p>
       <h2>Propiedad intelectual</h2>

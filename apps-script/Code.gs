@@ -4,8 +4,10 @@
  * Qué hace:
  *  1. Recibe los correos de quienes piden su resumen gratis y se lo envía.
  *  2. Recibe el aviso de pago de Lemon Squeezy, verifica el pedido con su API,
- *     genera el informe PDF personalizado y lo envía con el archivo de presupuesto.
- *  3. Crea la base de datos (Google Sheets) y la plantilla de presupuesto.
+ *     busca la clave de licencia y envía el enlace al tablero + el informe PDF.
+ *  3. Valida claves de licencia para el tablero (GET ?action=licencia&key=...).
+ *  4. Guarda inscripciones a la beta y comentarios del tablero.
+ *  5. Crea la base de datos (Google Sheets).
  *
  * Puesta en marcha: ver README.md, paso 3. Resumen:
  *  - Pega este archivo y appsscript.json en un proyecto nuevo de Apps Script
@@ -13,11 +15,12 @@
  *  - Ejecuta setup() una vez y autoriza los permisos.
  *  - En Configuración del proyecto > Propiedades del script, completa:
  *      LS_API_KEY, LS_STORE_ID, SITE_URL, CHECKOUT_PERSONAL, BRAND_NAME, REPLY_TO
+ *      y, si quieres, LS_PRODUCT_ID (para aceptar solo licencias de ese producto).
  *  - Implementa como aplicación web (ejecutar como: yo; acceso: cualquier persona).
  *  - Ejecuta probarInforme() para recibir un informe de ejemplo en tu correo.
  *
- * IMPORTANTE: las reglas de puntaje (sección 2) son copia de assets/js/scoring.js.
- * Si cambias una, cambia la otra y corre `node tests/scoring.test.mjs`.
+ * IMPORTANTE: las reglas de puntaje (sección 2) son copia de src/lib/scoring.js.
+ * Si cambias una, cambia la otra y corre `npm test`.
  */
 
 /* ============================================================
@@ -155,7 +158,7 @@ const AREA_DETAIL = {
   gastar: {
     why: 'Gastar menos de lo que ganas es la base de todo lo demás: sin ese margen no hay ahorro ni forma de pagar deudas.',
     actions: [
-      'Anota todos tus gastos durante 2 semanas en la hoja "Presupuesto" de tu archivo.',
+      'Anota todos tus gastos durante 2 semanas y pásalos a tu tablero.',
       'Clasifica cada gasto como esencial, importante o prescindible, y recorta primero los prescindibles.',
       'Programa el pago automático de tus cuentas fijas para el día en que recibes tu ingreso.',
       'Ponte un tope semanal para gastos variables (comida fuera, compras, salidas).'
@@ -164,7 +167,7 @@ const AREA_DETAIL = {
   ahorrar: {
     why: 'Un colchón de 3 a 6 meses de gastos esenciales evita que un imprevisto se convierta en deuda.',
     actions: [
-      'Calcula tu meta de fondo de emergencia en la hoja "Fondo de emergencia".',
+      'Mira en tu tablero cuánto te falta para tu fondo de emergencia.',
       'Abre una cuenta de ahorro separada, solo para emergencias.',
       'Programa un ahorro automático el día de pago, aunque sea el 5% de tu ingreso.',
       'Lleva a tu fondo cualquier ingreso extra: primas, bonos o devoluciones.'
@@ -173,7 +176,7 @@ const AREA_DETAIL = {
   deber: {
     why: 'Las deudas caras se comen el ingreso que podrías ahorrar; ordenarlas libera dinero cada mes.',
     actions: [
-      'Lista todas tus deudas con saldo, tasa y cuota en la hoja "Deudas".',
+      'Registra todas tus deudas con saldo, tasa y cuota en tu tablero.',
       'Paga el mínimo en todas y pon todo lo extra en la de tasa más alta (método avalancha).',
       'Consulta tu historial en las centrales de riesgo y pide corregir cualquier error.',
       'Si una cuota no te alcanza, llama al banco antes de atrasarte y pide un acuerdo de pago.'
@@ -191,8 +194,8 @@ const AREA_DETAIL = {
   planear: {
     why: 'Las metas con monto y fecha convierten el ahorro en un hábito con propósito.',
     actions: [
-      'Escribe 3 metas con monto y fecha en la hoja "Metas" de tu archivo.',
-      'Mira en el archivo cuánto debes ahorrar cada mes para cada meta.',
+      'Escribe 3 metas con monto y fecha.',
+      'Divide cada meta entre los meses que faltan: ese es tu ahorro mensual para ella.',
       'Revisa tu fondo de pensión: semanas o meses cotizados y proyección.',
       'Empieza un ahorro voluntario para el retiro, aunque sea pequeño.'
     ]
@@ -229,8 +232,65 @@ function buildPlan_(res) {
  * 4. ENTRADAS WEB
  * ============================================================ */
 
-function doGet() {
+function doGet(e) {
+  const p = (e && e.parameter) || {};
+  if (p.action === 'licencia') {
+    try { return json_(validateLicense_(p.key, cfg_())); }
+    catch (err) { logError_(err, 'licencia'); return json_({ ok: false, error: 'No pudimos validar la clave. Intenta de nuevo en un momento.' }); }
+  }
   return ContentService.createTextOutput('Pulso Financiero: servicio activo.');
+}
+
+/* ---------- Licencias del tablero ---------- */
+
+function validateLicense_(key, c) {
+  key = String(key || '').trim();
+  if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return { ok: false, error: 'La clave no tiene el formato correcto.' };
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('lic_' + key);
+  if (hit) return JSON.parse(hit);
+
+  const resp = UrlFetchApp.fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
+    method: 'post',
+    headers: { Accept: 'application/json' },
+    payload: { license_key: key },
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  let data = {};
+  try { data = JSON.parse(resp.getContentText()); } catch (err) { data = {}; }
+  if (code >= 500) throw new Error('Lemon Squeezy respondió ' + code + ' al validar una licencia');
+
+  const meta = data.meta || {};
+  const lk = data.license_key || {};
+  let out;
+  if (!data.valid) out = { ok: false, error: 'La clave no es válida o fue desactivada.' };
+  else if (c.LS_STORE_ID && String(meta.store_id) !== String(c.LS_STORE_ID)) out = { ok: false, error: 'La clave no es de esta tienda.' };
+  else if (c.LS_PRODUCT_ID && String(meta.product_id) !== String(c.LS_PRODUCT_ID)) out = { ok: false, error: 'La clave es de otro producto.' };
+  else if (lk.status && ['active', 'inactive'].indexOf(lk.status) === -1) out = { ok: false, error: 'La clave está ' + lk.status + '.' };
+  else out = { ok: true };
+  cache.put('lic_' + key, JSON.stringify(out), out.ok ? 21600 : 300);
+  return out;
+}
+
+/** Busca la clave de licencia de un pedido. Lemon Squeezy la crea unos segundos después del pago. */
+function fetchLicenseKey_(orderId, c) {
+  for (let i = 0; i < 4; i++) {
+    const resp = UrlFetchApp.fetch('https://api.lemonsqueezy.com/v1/license-keys?filter[order_id]=' + encodeURIComponent(orderId), {
+      headers: { Accept: 'application/vnd.api+json', Authorization: 'Bearer ' + c.LS_API_KEY },
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() === 200) {
+      const list = JSON.parse(resp.getContentText()).data || [];
+      if (list.length && list[0].attributes && list[0].attributes.key) return list[0].attributes.key;
+    }
+    if (i < 3) Utilities.sleep(2500);
+  }
+  return '';
+}
+
+function boardLink_(c, key) {
+  return String(c.SITE_URL).replace(/\/$/, '') + '/tablero/' + (key ? '?licencia=' + encodeURIComponent(key) : '');
 }
 
 function doPost(e) {
@@ -242,6 +302,8 @@ function doPost(e) {
     let out;
     if (src === 'ls') out = handleOrder_(body);
     else if (body.type === 'lead') out = handleLead_(body);
+    else if (body.type === 'beta') out = handleBeta_(body);
+    else if (body.type === 'feedback') out = handleFeedback_(body);
     else out = { ok: false, error: 'Solicitud desconocida' };
     return json_(out);
   } catch (err) {
@@ -294,6 +356,39 @@ function checkoutLink_(base, code, email, pais) {
   return url;
 }
 
+/* ---------- Beta y comentarios ---------- */
+
+function sheet_(name, header) {
+  const ss = db_();
+  let sh = ss.getSheetByName(name);
+  if (!sh) {
+    sh = ss.insertSheet(name);
+    sh.appendRow(header);
+    sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
+  }
+  return sh;
+}
+
+function handleBeta_(body) {
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { ok: false, error: 'Correo inválido' };
+  if (body.consent !== true) return { ok: false, error: 'Sin autorización' };
+  const sh = sheet_('Beta', ['Fecha', 'Correo', 'Autorizó', 'Estado']);
+  const exists = sh.getDataRange().getValues().slice(1).some(r => String(r[1]).toLowerCase() === email);
+  if (exists) return { ok: true, duplicate: true };
+  sh.appendRow([new Date(), email, 'Sí', 'Pendiente']);
+  return { ok: true };
+}
+
+function handleFeedback_(body) {
+  const text = String(body.text || '').replace(/[<>]/g, '').trim().slice(0, 1500);
+  if (text.length < 3) return { ok: false, error: 'Comentario vacío' };
+  const name = String(body.name || '').replace(/[<>]/g, '').trim().slice(0, 60);
+  const sh = sheet_('Comentarios', ['Fecha', 'Nombre', 'Comentario', 'Autoriza publicar', 'Revisado']);
+  sh.appendRow([new Date(), name, text, body.publish === true ? 'Sí' : 'No', '']);
+  return { ok: true };
+}
+
 /* ---------- Pedido pagado (webhook de Lemon Squeezy) ---------- */
 
 function handleOrder_(payload) {
@@ -320,10 +415,12 @@ function handleOrder_(payload) {
   try { res = score_(decode_(custom.r)); } catch (err) { res = null; }
 
   const pais = cleanCountry_(custom.pais);
-  if (res) sendPackage_(email, name, custom.r, pais, res, c);
-  else sendPackageWithoutTest_(email, name, c);
+  const key = fetchLicenseKey_(orderId, c);
+  if (!key) logError_(new Error('Pedido sin clave de licencia: activa "Generate license keys" en el producto'), orderId);
+  if (res) sendPackage_(email, name, custom.r, pais, res, c, key);
+  else sendPackageWithoutTest_(email, name, c, key);
 
-  sh.appendRow([new Date(), orderId, email, name, custom.r ? "'" + custom.r : '', res ? res.total : '', res ? res.level.name : 'Sin test', 'Enviado', pais]);
+  sh.appendRow([new Date(), orderId, email, name, custom.r ? "'" + custom.r : '', res ? res.total : '', res ? res.level.name : 'Sin test', 'Enviado', pais, key ? 'Sí' : 'No']);
   return { ok: true };
 }
 
@@ -341,44 +438,28 @@ function fetchOrder_(orderId, c) {
  * 5. ENVÍO DEL PAQUETE
  * ============================================================ */
 
-function sendPackage_(email, name, code, pais, res, c) {
+function sendPackage_(email, name, code, pais, res, c, key) {
   const answers = decode_(code);
-  const pdf = Utilities.newBlob(reportHtml_(res, answers, name, c, pais), 'text/html', 'informe.html')
+  const pdf = Utilities.newBlob(reportHtml_(res, answers, name, c, pais, key), 'text/html', 'informe.html')
     .getAs('application/pdf').setName('Informe de salud financiera - ' + c.BRAND_NAME + '.pdf');
-  const attachments = [pdf];
-  const xlsx = templateXlsx_(c);
-  if (xlsx) attachments.push(xlsx);
   MailApp.sendEmail({
     to: email,
-    subject: 'Tu paquete de salud financiera: informe, archivo y plan de 30 días',
-    htmlBody: packageEmailHtml_(name, res, c, true),
-    attachments: attachments,
+    subject: 'Tu tablero financiero está listo',
+    htmlBody: packageEmailHtml_(name, res, c, key),
+    attachments: [pdf],
     name: c.BRAND_NAME,
     replyTo: c.REPLY_TO || undefined
   });
 }
 
-function sendPackageWithoutTest_(email, name, c) {
-  const attachments = [];
-  const xlsx = templateXlsx_(c);
-  if (xlsx) attachments.push(xlsx);
+function sendPackageWithoutTest_(email, name, c, key) {
   MailApp.sendEmail({
     to: email,
-    subject: 'Tu paquete de salud financiera: falta un paso',
-    htmlBody: packageEmailHtml_(name, null, c, false),
-    attachments: attachments,
+    subject: 'Tu tablero financiero está listo: falta un paso',
+    htmlBody: packageEmailHtml_(name, null, c, key),
     name: c.BRAND_NAME,
     replyTo: c.REPLY_TO || undefined
   });
-}
-
-function templateXlsx_(c) {
-  if (!c.TEMPLATE_ID) return null;
-  const resp = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + c.TEMPLATE_ID + '/export?format=xlsx', {
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true
-  });
-  if (resp.getResponseCode() !== 200) { logError_(new Error('No se pudo exportar la plantilla'), resp.getResponseCode()); return null; }
-  return resp.getBlob().setName('Presupuesto y plan de deudas - ' + c.BRAND_NAME + '.xlsx');
 }
 
 /* ============================================================
@@ -429,26 +510,39 @@ function leadEmailHtml_(res, buy, c) {
     (res.potential ? '<p style="background:' + HEX.soft + ';padding:12px;border-radius:8px"><b>Tu potencial: de ' + res.potential.from + ' a ' + res.potential.to + '.</b> Si llevas ' + esc_(res.potential.area) + ' a verde, tu puntaje sube a ' + res.potential.to + '.</p>' : '') +
     '<h2 style="font-size:16px;margin-top:24px">Tu semáforo por área</h2>' + areasTable_(res) +
     (buy ? '<div style="margin-top:28px;padding:20px;border:2px solid ' + HEX.brand + ';border-radius:12px">' +
-      '<b style="font-size:16px">¿Quieres saber exactamente qué hacer?</b>' +
-      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">Tu plan de 30 días ya está armado con tus respuestas. El Paquete Personal incluye el informe en PDF, el plan y el archivo de presupuesto y deudas.</p>' +
+      '<b style="font-size:16px">Mira tus números reales en tu tablero</b>' +
+      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">Tu tablero personal muestra cuánto te queda al mes, en qué se va tu dinero, cuándo completas tu fondo de emergencia y en qué orden pagar tus deudas, con recomendaciones hechas con tus números. Tus cifras se quedan en tu navegador.</p>' +
       '<p style="margin:0 0 14px"><b style="font-size:22px">' + esc_(c.PRICE_PERSONAL) + '</b> pago único' + (c.PRICE_REGULAR ? ' · precio de lanzamiento (luego ' + esc_(c.PRICE_REGULAR) + ')' : '') + '</p>' +
-      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Quiero mi plan completo</a></div>' : ''),
+      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Desbloquear mi tablero</a>' +
+      '<p style="font-size:13px;margin:12px 0 0"><a href="' + esc_(boardLink_(c) + '?ejemplo') + '" style="color:' + HEX.brand + '">Ver un tablero de ejemplo</a></p></div>' : ''),
     c);
 }
 
-function packageEmailHtml_(name, res, c, withReport) {
+function keyBoxHtml_(c, key) {
+  if (!key) {
+    return '<p style="background:#fff4e5;border:1px solid #f2d3a6;padding:12px;border-radius:8px">Tu clave de acceso se está generando. Si no te llega en un correo aparte en los próximos minutos, responde a este mensaje y te la enviamos.</p>';
+  }
+  return '<div style="margin:18px 0;padding:18px;border:2px solid ' + HEX.brand + ';border-radius:12px">' +
+    '<a href="' + esc_(boardLink_(c, key)) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Abrir mi tablero</a>' +
+    '<p style="margin:14px 0 4px;font-size:13px;color:' + HEX.ink2 + '">Tu clave de acceso (guárdala para entrar desde otro dispositivo):</p>' +
+    '<div style="font-family:Menlo,Consolas,monospace;font-size:15px;font-weight:bold;background:' + HEX.soft + ';padding:10px 12px;border-radius:8px;word-break:break-all">' + esc_(key) + '</div></div>';
+}
+
+function packageEmailHtml_(name, res, c, key) {
   const hello = name ? 'Hola, ' + esc_(name.split(' ')[0]) + ':' : 'Hola:';
-  const body = withReport
-    ? '<p>' + hello + '</p><p>Gracias por tu compra. Aquí tienes tu paquete:</p>' +
-      '<ul><li><b>Informe en PDF</b> con tu puntaje (' + res.total + ' de 100, ' + esc_(res.level.name) + '), tu semáforo y el plan de 30 días.</li>' +
-      '<li><b>Archivo de presupuesto</b> en Excel, con fondo de emergencia, deudas y metas. Para usarlo en Google Sheets, súbelo a tu Google Drive y ábrelo con Hojas de cálculo.</li></ul>' +
-      '<p>Empieza por la semana 1 del plan. Si tienes dudas, responde a este correo.</p>'
-    : '<p>' + hello + '</p><p>Gracias por tu compra. No recibimos tus respuestas del test, así que adjuntamos tu archivo de presupuesto y te pedimos un paso más:</p>' +
-      '<p><a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">Haz el test aquí</a> y responde a este correo con tu puntaje; te enviaremos tu informe personalizado.</p>';
+  const privacy = '<p style="font-size:13px;color:' + HEX.ink2 + '">Tus cifras (ingresos, gastos, deudas) se guardan solo en tu navegador; nosotros no las vemos. Para usarlas en otro dispositivo, usa el botón "Respaldo" del tablero.</p>';
+  const body = res
+    ? '<p>' + hello + '</p><p>Gracias por tu compra. Tu tablero completo ya está desbloqueado:</p>' + keyBoxHtml_(c, key) +
+      '<p><b>Cómo empezar:</b> abre el tablero, escribe tus ingresos, gastos y deudas del mes (unos 10 minutos) y mira tus recomendaciones. Después, sigue la semana 1 de tu plan.</p>' +
+      '<p>Adjuntamos además tu <b>informe en PDF</b> con tu puntaje (' + res.total + ' de 100, ' + esc_(res.level.name) + '), tu semáforo y el plan de 30 días.</p>' +
+      privacy + '<p>Si tienes dudas, responde a este correo.</p>'
+    : '<p>' + hello + '</p><p>Gracias por tu compra. Tu tablero ya está desbloqueado:</p>' + keyBoxHtml_(c, key) +
+      '<p>No recibimos tus respuestas del test, así que falta un paso: <a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">haz el test aquí</a> (5 minutos) para que el tablero muestre tu radar y tu plan. Si quieres el informe en PDF, responde a este correo con tu puntaje.</p>' +
+      privacy;
   return shell_(body, c);
 }
 
-function reportHtml_(res, answers, name, c, pais) {
+function reportHtml_(res, answers, name, c, pais, key) {
   const date = Utilities.formatDate(new Date(), 'America/Bogota', 'dd/MM/yyyy');
   const plan = buildPlan_(res);
   const prof = [pais || 'País no indicado'].concat(PROFILE.map((p, i) => p.options[answers.profile[i]])).map(esc_).join(' · ');
@@ -504,14 +598,14 @@ function reportHtml_(res, answers, name, c, pais) {
     '<h2 ' + h2 + '>Tu resultado, área por área</h2>' + areasDetail +
     '<h2 ' + h2 + '>Tu plan de 30 días</h2>' +
     '<p>Dos acciones por semana, empezando por lo más urgente. Marca cada una cuando la termines.</p>' + planHtml +
-    '<h2 ' + h2 + '>Cómo usar tu archivo</h2>' +
-    '<p>El archivo adjunto tiene cinco hojas: Instrucciones, Presupuesto, Fondo de emergencia, Deudas y Metas. Escribe solo en las celdas amarillas; el resto se calcula solo. Repite este test en 3 meses para medir tu avance.</p>' +
+    '<h2 ' + h2 + '>Tu tablero</h2>' +
+    '<p>Abre tu tablero en <a href="' + esc_(boardLink_(c, key)) + '" style="color:' + HEX.brand + '">' + esc_(boardLink_(c)) + '</a> y escribe tus ingresos, gastos y deudas del mes. Verás cuánto te queda, en qué se va tu dinero, cuándo completas tu fondo de emergencia y en qué orden pagar tus deudas. Actualízalo una vez al mes y repite este test en 3 meses para medir tu avance.</p>' +
     '<p style="font-size:11px;color:#7a8782;margin-top:28px">Este informe es una herramienta educativa basada en tus respuestas y en una adaptación del FinHealth Score de la Financial Health Network. No es asesoría financiera, legal ni tributaria personalizada.</p>' +
     '</body></html>';
 }
 
 /* ============================================================
- * 7. BASE DE DATOS, PLANTILLA Y UTILIDADES
+ * 7. BASE DE DATOS Y UTILIDADES
  * ============================================================ */
 
 function db_() {
@@ -527,27 +621,24 @@ function logError_(err, detail) {
   } catch (e) { /* sin base de datos todavía */ }
 }
 
-/** Ejecútalo una vez. Crea la base de datos y la plantilla si no existen. */
+/** Ejecútalo una vez. Crea la base de datos si no existe. */
 function setup() {
   const props = PropertiesService.getScriptProperties();
   const c = cfg_();
   Object.keys(DEFAULTS).forEach(k => { if (!props.getProperty(k)) props.setProperty(k, DEFAULTS[k]); });
-  ['LS_API_KEY', 'LS_STORE_ID'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
+  ['LS_API_KEY', 'LS_STORE_ID', 'LS_PRODUCT_ID'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
 
   if (!c.DB_ID) {
     const ss = SpreadsheetApp.create(c.BRAND_NAME + ' — Base de datos');
     const leads = ss.getSheets()[0].setName('Leads');
     leads.appendRow(['Fecha', 'Correo', 'Código', 'Puntaje', 'Nivel', 'Test', 'Autorizó', 'País']);
-    ss.insertSheet('Pedidos').appendRow(['Fecha', 'Pedido', 'Correo', 'Nombre', 'Código', 'Puntaje', 'Nivel', 'Estado', 'País']);
+    ss.insertSheet('Pedidos').appendRow(['Fecha', 'Pedido', 'Correo', 'Nombre', 'Código', 'Puntaje', 'Nivel', 'Estado', 'País', 'Clave enviada']);
+    ss.insertSheet('Beta').appendRow(['Fecha', 'Correo', 'Autorizó', 'Estado']);
+    ss.insertSheet('Comentarios').appendRow(['Fecha', 'Nombre', 'Comentario', 'Autoriza publicar', 'Revisado']);
     ss.insertSheet('Errores').appendRow(['Fecha', 'Mensaje', 'Detalle']);
     ss.getSheets().forEach(s => s.getRange(1, 1, 1, s.getLastColumn()).setFontWeight('bold'));
     props.setProperty('DB_ID', ss.getId());
     console.log('Base de datos creada: ' + ss.getUrl());
-  }
-  if (!c.TEMPLATE_ID) {
-    const t = crearPlantillaPresupuesto();
-    props.setProperty('TEMPLATE_ID', t.getId());
-    console.log('Plantilla creada: ' + t.getUrl());
   }
   console.log('Listo. Ahora completa LS_API_KEY, LS_STORE_ID, SITE_URL y CHECKOUT_PERSONAL en Propiedades del script.');
 }
@@ -557,99 +648,6 @@ function probarInforme() {
   const c = cfg_();
   const me = Session.getEffectiveUser().getEmail();
   const code = '110' + '101111121112'; // 3 de perfil + 12 respuestas de ejemplo
-  sendPackage_(me, 'Persona de prueba', code, 'Colombia', score_(decode_(code)), c);
+  sendPackage_(me, 'Persona de prueba', code, 'Colombia', score_(decode_(code)), c, 'CLAVE-DE-PRUEBA-0000');
   console.log('Informe de prueba enviado a ' + me);
-}
-
-/** Crea el archivo de presupuesto que se adjunta a cada compra. */
-function crearPlantillaPresupuesto() {
-  const c = cfg_();
-  const ss = SpreadsheetApp.create('Presupuesto y plan de deudas - ' + c.BRAND_NAME);
-  const input = '#fff4c2', head = '#0e7c66';
-  const styleHead = r => r.setBackground(head).setFontColor('#ffffff').setFontWeight('bold');
-
-  // Instrucciones
-  const ins = ss.getSheets()[0].setName('Instrucciones');
-  ins.getRange('A1').setValue('Tu archivo de presupuesto y plan de deudas').setFontSize(16).setFontWeight('bold');
-  ins.getRange('A3:A9').setValues([
-    ['1. Escribe solo en las celdas amarillas; lo demás se calcula solo.'],
-    ['2. Presupuesto: anota tus ingresos y gastos del mes y clasifica cada gasto.'],
-    ['3. Fondo de emergencia: define cuántos meses quieres cubrir y cuánto puedes ahorrar.'],
-    ['4. Deudas: lista cada deuda. La columna "Orden" te dice cuál pagar primero (la de tasa más alta).'],
-    ['5. Metas: escribe tus metas con monto y fecha y mira cuánto ahorrar cada mes.'],
-    ['6. Revisa el archivo una vez al mes, el día que recibes tu ingreso.'],
-    ['Herramienta educativa de ' + c.BRAND_NAME + '. No es asesoría financiera.']
-  ]);
-  ins.setColumnWidth(1, 720);
-
-  // Presupuesto
-  const p = ss.insertSheet('Presupuesto');
-  p.getRange('A1:E1').setValues([['Concepto', 'Tipo', 'Presupuesto', 'Real', 'Diferencia']]);
-  styleHead(p.getRange('A1:E1'));
-  p.getRange('A2').setValue('INGRESOS').setFontWeight('bold');
-  p.getRange('A3:A5').setValues([['Ingreso principal'], ['Otros ingresos'], ['Ingresos extra']]);
-  p.getRange('B3:B5').setValue('Ingreso');
-  p.getRange('A6').setValue('Total ingresos').setFontWeight('bold');
-  p.getRange('C6').setFormula('=SUM(C3:C5)'); p.getRange('D6').setFormula('=SUM(D3:D5)');
-  p.getRange('A8').setValue('GASTOS').setFontWeight('bold');
-  const gastos = [['Vivienda (arriendo o cuota)', 'Esencial'], ['Servicios públicos', 'Esencial'], ['Mercado', 'Esencial'], ['Transporte', 'Esencial'],
-    ['Salud y seguros', 'Esencial'], ['Educación', 'Importante'], ['Cuotas de deudas', 'Esencial'], ['Celular e internet', 'Importante'],
-    ['Comida fuera y domicilios', 'Prescindible'], ['Ropa y compras', 'Prescindible'], ['Entretenimiento y suscripciones', 'Prescindible'], ['Otros', 'Importante']];
-  p.getRange(9, 1, gastos.length, 2).setValues(gastos);
-  const last = 8 + gastos.length;
-  p.getRange(last + 1, 1).setValue('Total gastos').setFontWeight('bold');
-  p.getRange(last + 1, 3).setFormula('=SUM(C9:C' + last + ')'); p.getRange(last + 1, 4).setFormula('=SUM(D9:D' + last + ')');
-  p.getRange(last + 3, 1).setValue('MARGEN (ingresos - gastos)').setFontWeight('bold');
-  p.getRange(last + 3, 3).setFormula('=C6-C' + (last + 1)); p.getRange(last + 3, 4).setFormula('=D6-D' + (last + 1));
-  p.getRange(last + 4, 1).setValue('Ahorro como % del ingreso');
-  p.getRange(last + 4, 4).setFormula('=IFERROR(D' + (last + 3) + '/D6,0)').setNumberFormat('0%');
-  for (let r = 3; r <= last; r++) if (r !== 6 && r !== 7 && r !== 8) p.getRange(r, 5).setFormula('=C' + r + '-D' + r);
-  p.getRange('C3:D5').setBackground(input); p.getRange('C9:D' + last).setBackground(input);
-  p.getRange('C2:E' + (last + 3)).setNumberFormat('#,##0');
-  p.getRange('B9:B' + last).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['Esencial', 'Importante', 'Prescindible']).build());
-  p.setColumnWidth(1, 260); p.setFrozenRows(1);
-
-  // Fondo de emergencia
-  const f = ss.insertSheet('Fondo de emergencia');
-  f.getRange('A1:B1').setValues([['Fondo de emergencia', '']]); styleHead(f.getRange('A1:B1'));
-  f.getRange('A2:A8').setValues([['Gastos esenciales al mes (del presupuesto)'], ['Meses que quieres cubrir'], ['Meta del fondo'], ['Ahorrado hoy'], ['Te falta'], ['Puedes ahorrar al mes'], ['Meses para lograrlo']]);
-  f.getRange('B2').setFormula("=SUMIF(Presupuesto!B9:B" + last + ",\"Esencial\",Presupuesto!D9:D" + last + ")");
-  f.getRange('B3').setValue(3).setBackground(input);
-  f.getRange('B4').setFormula('=B2*B3');
-  f.getRange('B5').setValue(0).setBackground(input);
-  f.getRange('B6').setFormula('=MAX(B4-B5,0)');
-  f.getRange('B7').setValue(0).setBackground(input);
-  f.getRange('B8').setFormula('=IFERROR(ROUNDUP(B6/B7,0),"Define un ahorro mensual")');
-  f.getRange('B2:B7').setNumberFormat('#,##0'); f.getRange('B3').setNumberFormat('0');
-  f.setColumnWidth(1, 320); f.setColumnWidth(2, 180);
-
-  // Deudas
-  const d = ss.insertSheet('Deudas');
-  d.getRange('A1:F1').setValues([['Deuda', 'Saldo', 'Tasa mensual', 'Cuota mínima', 'Intereses del mes', 'Orden de pago']]); styleHead(d.getRange('A1:F1'));
-  d.getRange('A2:D9').setBackground(input);
-  for (let r = 2; r <= 9; r++) {
-    d.getRange(r, 5).setFormula('=IF(B' + r + '="","",B' + r + '*C' + r + ')');
-    d.getRange(r, 6).setFormula('=IF(C' + r + '="","",RANK(C' + r + ',$C$2:$C$9,0))');
-  }
-  d.getRange('A11').setValue('Total').setFontWeight('bold');
-  d.getRange('B11').setFormula('=SUM(B2:B9)'); d.getRange('D11').setFormula('=SUM(D2:D9)'); d.getRange('E11').setFormula('=SUM(E2:E9)');
-  d.getRange('A13').setValue('Método avalancha: paga la cuota mínima de todas y pon cualquier dinero extra en la deuda con orden 1. Cuando la termines, pasa a la 2.');
-  d.getRange('B2:B11').setNumberFormat('#,##0'); d.getRange('D2:E11').setNumberFormat('#,##0'); d.getRange('C2:C9').setNumberFormat('0.00%');
-  d.setColumnWidth(1, 220);
-
-  // Metas
-  const m = ss.insertSheet('Metas');
-  m.getRange('A1:G1').setValues([['Meta', 'Monto', 'Fecha', 'Ahorrado', 'Falta', 'Meses restantes', 'Ahorro mensual necesario']]); styleHead(m.getRange('A1:G1'));
-  m.getRange('A2:D6').setBackground(input);
-  for (let r = 2; r <= 6; r++) {
-    m.getRange(r, 5).setFormula('=IF(B' + r + '="","",MAX(B' + r + '-D' + r + ',0))');
-    m.getRange(r, 6).setFormula('=IF(C' + r + '="","",MAX(DATEDIF(TODAY(),C' + r + ',"M"),1))');
-    m.getRange(r, 7).setFormula('=IF(OR(E' + r + '="",F' + r + '=""),"",E' + r + '/F' + r + ')');
-  }
-  m.getRange('B2:B6').setNumberFormat('#,##0'); m.getRange('D2:E6').setNumberFormat('#,##0'); m.getRange('G2:G6').setNumberFormat('#,##0');
-  m.getRange('C2:C6').setNumberFormat('dd/mm/yyyy');
-  m.setColumnWidth(1, 220);
-
-  ss.setActiveSheet(ins);
-  return ss;
 }

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { ScoreGauge } from "@/components/ui/score-gauge"
 import { TimelineContent } from "@/components/ui/timeline-content"
 import { cn } from "@/lib/utils"
+import { store } from "@/lib/store"
 
 const STORE_KEY = "pulso_personal_v2"
 
@@ -76,6 +77,7 @@ export function Quiz() {
         pais: (a[0] as string) || "",
       }
       save(data)
+      store.setTest({ ...data, at: new Date().toISOString() })
       setResult(data)
     } else {
       setStep(Math.max(-1, n))
@@ -345,10 +347,18 @@ function ResultView({ data, onRestart }: { data: Saved; onRestart: () => void })
             </div>
           ))}
           <div className="absolute inset-x-0 bottom-0 flex h-3/5 items-end justify-center gap-2 bg-gradient-to-b from-transparent via-card/90 to-card pb-6 font-extrabold">
-            <Lock className="size-4 text-primary" /> {lockedCount} acciones más, en tu Paquete Personal
+            <Lock className="size-4 text-primary" /> {lockedCount} acciones más, en tu tablero completo
           </div>
         </div>
       </section>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-5">
+        <div>
+          <div className="font-extrabold">Tu tablero ya tiene tu radar y tu primera acción</div>
+          <p className="text-sm text-muted-foreground">Mira la vista previa gratis antes de decidir.</p>
+        </div>
+        <Button asChild variant="outline"><Link href="/tablero">Ver mi tablero <ArrowRight /></Link></Button>
+      </div>
 
       <Offer data={data} email={email} />
 
@@ -368,17 +378,17 @@ function Offer({ data, email }: { data: Saved; email: string }) {
     <TimelineContent className="mt-12 overflow-hidden rounded-3xl shadow-xl">
       <div id="oferta" className="bg-[#0f1a17] px-6 py-7 text-[#eef3f1] md:px-8">
         {config.priceRegular && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{config.launchLabel}</span>}
-        <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Convierte tu diagnóstico en un plan de acción</h2>
-        <p className="max-w-[60ch] text-[#b4c0bb]">Un informe hecho con tus respuestas, no una plantilla genérica: qué está pasando en cada área, qué hacer primero y las herramientas para hacerlo.</p>
+        <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Desbloquea tu tablero financiero</h2>
+        <p className="max-w-[60ch] text-[#b4c0bb]">Escribe tus números una vez y ve, en un solo lugar, cuánto te queda al mes, a dónde se va tu plata, cuándo sales de deudas y qué hacer primero.</p>
       </div>
       <div className="rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:px-8">
         <PreviewPages />
         <ul className="mb-6 mt-6 space-y-3">
           {[
-            ["Informe en PDF personalizado:", "tu puntaje explicado área por área y por qué importa."],
-            ["Tus alertas, resueltas:", "qué significa cada una y qué hacer, en orden de urgencia."],
-            ["Plan de 30 días:", "8 acciones concretas, semana por semana, para tu caso."],
-            ["Archivo de presupuesto (Excel y Google Sheets):", "presupuesto, fondo de emergencia, plan de salida de deudas y metas, con fórmulas listas."],
+            ["Tablero personal:", "margen del mes, tasa de ahorro, gastos por categoría y tus 5 áreas en un radar."],
+            ["Plan de salida de deudas:", "cuántos meses te faltan y cuánto ahorras en intereses pagando un extra."],
+            ["Recomendaciones con tus números:", "qué recortar, cuánto y en qué orden, no consejos genéricos."],
+            ["Plan de 30 días e informe en PDF:", "8 acciones semana por semana y tu resultado explicado área por área."],
           ].map(([b, t]) => (
             <li key={b} className="flex gap-3 text-ink-2">
               <span className="mt-0.5 grid size-6 shrink-0 place-content-center rounded-full border border-primary"><Check className="size-3.5 text-primary" /></span>
@@ -400,7 +410,7 @@ function Offer({ data, email }: { data: Saved; email: string }) {
           <span className="flex items-center gap-1.5"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
           <span className="flex items-center gap-1.5"><CreditCard className="size-4 text-primary" />Tarjeta y otros medios en el checkout</span>
           <span className="flex items-center gap-1.5"><Mail className="size-4 text-primary" />Llega a tu correo en minutos</span>
-          <span className="flex items-center gap-1.5"><Check className="size-4 text-primary" />Sin suscripción</span>
+          <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus números se quedan en tu navegador</span>
         </div>
       </div>
     </TimelineContent>
@@ -408,30 +418,24 @@ function Offer({ data, email }: { data: Saved; email: string }) {
 }
 
 function PreviewPages() {
-  const page = "relative flex aspect-[3/4] flex-col gap-1.5 overflow-hidden rounded-lg border border-[#dfe5e1] bg-white p-3 shadow-md"
-  const label = "mb-1 text-[10px] font-extrabold uppercase tracking-wide text-[#0e7c66]"
+  // Miniatura del tablero (decorativa)
   return (
-    <div className="grid grid-cols-3 gap-3" aria-hidden="true">
-      <div className={page}>
-        <div className={label}>Informe PDF</div>
-        <div className="mb-1 aspect-square w-[38%] rounded-full border-[5px] border-[#d9a21b] border-l-[#eef2ef]" />
-        <div className="h-1.5 w-4/5 rounded bg-[#dfe5e1]" />
-        <div className="h-1.5 w-[70%] rounded bg-[#1f9d6b]" />
-        <div className="h-1.5 w-[55%] rounded bg-[#d9a21b]" />
-        <div className="h-1.5 w-[35%] rounded bg-[#d6453d]" />
+    <div className="grid grid-cols-6 gap-2 rounded-2xl border bg-muted/40 p-3" aria-hidden="true">
+      {[["Te queda al mes", "bg-verde"], ["Ahorro", "bg-amarillo"], ["Colchón", "bg-amarillo"]].map(([t, c]) => (
+        <div key={t} className="col-span-2 rounded-xl border bg-card p-2.5">
+          <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground">{t}<span className={cn("size-1.5 rounded-full", c)} /></div>
+          <div className="mt-1.5 h-3 w-3/4 rounded bg-foreground/80" />
+        </div>
+      ))}
+      <div className="col-span-4 grid h-28 grid-cols-5 grid-rows-2 gap-1 rounded-xl border bg-card p-2">
+        <div className="col-span-2 row-span-2 rounded-md bg-[#0e7c66]" />
+        <div className="col-span-2 rounded-md bg-[#8fd3bd]" />
+        <div className="rounded-md bg-[#f2b84b]" />
+        <div className="rounded-md bg-[#d6453d]" />
+        <div className="col-span-2 rounded-md bg-[#f2b84b]/70" />
       </div>
-      <div className={cn(page, "-translate-y-1.5")}>
-        <div className={label}>Plan de 30 días</div>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <span className="size-2.5 shrink-0 rounded-sm border-[1.5px] border-[#0e7c66]" />
-            <span className="h-2 flex-1 rounded bg-[#eef2ef]" />
-          </div>
-        ))}
-      </div>
-      <div className={page}>
-        <div className={label}>Archivo Excel</div>
-        <div className="flex-1 rounded bg-[#fff8d6] [background-image:linear-gradient(#0e7c66,#0e7c66),repeating-linear-gradient(0deg,transparent_0_13px,#dfe5e1_13px_14px),repeating-linear-gradient(90deg,transparent_0_24px,#dfe5e1_24px_25px)] [background-position:top,0_0,0_0] [background-repeat:no-repeat,repeat,repeat] [background-size:100%_12%,auto,auto]" />
+      <div className="col-span-2 grid h-28 place-items-center rounded-xl border bg-card">
+        <svg viewBox="0 0 60 60" className="size-20"><polygon points="30,8 50,24 43,50 17,50 10,24" fill="none" className="stroke-border" /><polygon points="30,16 44,26 38,44 20,46 16,27" className="fill-primary/20 stroke-primary" strokeWidth="1.5" /></svg>
       </div>
     </div>
   )

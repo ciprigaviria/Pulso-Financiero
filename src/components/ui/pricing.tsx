@@ -6,7 +6,7 @@
 import Link from "next/link"
 import NumberFlow from "@number-flow/react"
 import { motion, useInView } from "motion/react"
-import { BarChart3, CalendarCheck, CheckCheck, CreditCard, FileSpreadsheet, FileText, Gauge, Lock, Mail, ShieldCheck, Store } from "lucide-react"
+import { BarChart3, Bell, CalendarCheck, CheckCheck, CreditCard, FileText, Gauge, LayoutDashboard, Lightbulb, Lock, Mail, ShieldCheck } from "lucide-react"
 import { useRef } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,40 +39,40 @@ const plans: Plan[] = [
     href: "/prueba-personal",
     features: [
       { text: "Puntaje de 0 a 100 y tu nivel", icon: <Gauge size={20} /> },
-      { text: "Semáforo de las 5 áreas", icon: <BarChart3 size={20} /> },
-      { text: "No recopilamos tus respuestas", icon: <Lock size={20} /> },
+      { text: "Semáforo y radar de las 5 áreas", icon: <BarChart3 size={20} /> },
+      { text: "Vista previa de tu tablero", icon: <LayoutDashboard size={20} /> },
     ],
-    includes: ["Incluye:", "Hallazgos clave de tus respuestas", "Tu potencial de mejora", "Nombre de tus alertas rojas", "Primera acción de tu plan"],
+    includes: ["Incluye:", "Hallazgos clave de tus respuestas", "Tu potencial de mejora", "Tus alertas rojas", "La primera acción de tu plan"],
   },
   {
-    name: "Paquete Personal",
-    description: "Para convertir tu diagnóstico en un plan de acción concreto.",
+    name: "Tablero completo",
+    description: "Para ver tus números reales y saber exactamente qué hacer.",
     price: config.pricePersonal,
     priceNote: "pago único",
     badge: config.priceRegular ? config.launchLabel : undefined,
     popular: true,
-    cta: "Haz el test y desbloquea tu plan",
+    cta: "Haz el test y desbloquéalo",
     href: "/prueba-personal",
     features: [
-      { text: "Informe PDF personalizado", icon: <FileText size={20} /> },
-      { text: "Plan de 30 días, semana por semana", icon: <CalendarCheck size={20} /> },
-      { text: "Archivo Excel y Google Sheets", icon: <FileSpreadsheet size={20} /> },
+      { text: "Margen, ahorro y gastos por categoría", icon: <LayoutDashboard size={20} /> },
+      { text: "Plan de salida de deudas", icon: <CalendarCheck size={20} /> },
+      { text: "Recomendaciones con tus números", icon: <Lightbulb size={20} /> },
     ],
-    includes: ["Todo lo del test gratis, más:", "Tu resultado explicado área por área", "Qué hacer con cada alerta, en orden", "Las 8 acciones de tu plan", "Presupuesto, fondo de emergencia, deudas y metas"],
+    includes: ["Todo lo del test gratis, más:", "Fondo de emergencia y cuándo lo completas", "Proyección de tu ahorro a 12 meses", "Plan de 30 días con seguimiento", "Informe en PDF de tu resultado"],
   },
   {
-    name: "Salud de tu negocio",
-    description: "Para dueños de pequeños negocios de cualquier sector.",
+    name: "Pulso Mensual",
+    description: "Suscripción opcional para seguir tu avance mes a mes.",
     price: null,
     priceNote: "muy pronto",
     soon: true,
     cta: "Disponible pronto",
     features: [
-      { text: "Margen y punto de equilibrio", icon: <Store size={20} /> },
-      { text: "Flujo de caja", icon: <BarChart3 size={20} /> },
-      { text: "Plan de 90 días", icon: <CalendarCheck size={20} /> },
+      { text: "Comparación mes a mes", icon: <BarChart3 size={20} /> },
+      { text: "Recordatorios y alertas", icon: <Bell size={20} /> },
+      { text: "Test trimestral con tu evolución", icon: <FileText size={20} /> },
     ],
-    includes: ["Incluirá:", "Dependencia de pocos clientes", "Cuentas personales y del negocio", "Archivo de flujo de caja"],
+    includes: ["Se suma al tablero completo:", "Historial de tus números", "Avance de tus metas", "Nuevas recomendaciones cada mes"],
   },
 ]
 
@@ -101,7 +101,7 @@ export default function Pricing() {
           </VerticalCutReveal>
         </h2>
         <TimelineContent as="p" animationNum={0} className="text-muted-foreground md:text-lg">
-          El diagnóstico siempre es gratis. Si quieres saber exactamente qué hacer, el Paquete Personal se arma con tus respuestas en el momento.
+          El diagnóstico siempre es gratis. Si quieres ver tus números reales y saber exactamente qué hacer, desbloqueas el tablero una sola vez.
         </TimelineContent>
       </article>
 
@@ -132,7 +132,7 @@ export default function Pricing() {
                 ) : (
                   <Button size="lg" variant="outline" className="mb-3 w-full" disabled>{plan.cta}</Button>
                 )}
-                {plan.popular && <p className="mb-4 text-xs text-muted-foreground">Primero haces el test: el paquete se arma con tus respuestas.</p>}
+                {plan.popular && <p className="mb-4 text-xs text-muted-foreground">Primero haces el test: el tablero se arma con tus respuestas.</p>}
 
                 <ul className="mb-5 mt-4 space-y-3">
                   {plan.features.map((f) => (
@@ -170,8 +170,8 @@ export default function Pricing() {
       >
         <span className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
         <span className="flex items-center gap-2"><CreditCard className="size-4 text-primary" />Tarjeta de crédito o débito y otros medios en el checkout</span>
-        <span className="flex items-center gap-2"><Mail className="size-4 text-primary" />Llega a tu correo en minutos</span>
-        <span className="flex items-center gap-2"><Lock className="size-4 text-primary" />Sin suscripción</span>
+        <span className="flex items-center gap-2"><Mail className="size-4 text-primary" />Acceso inmediato por correo</span>
+        <span className="flex items-center gap-2"><Lock className="size-4 text-primary" />Tus números se quedan en tu navegador</span>
       </motion.div>
     </div>
   )

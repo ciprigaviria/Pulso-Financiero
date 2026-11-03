@@ -13,29 +13,51 @@ const gasSrc = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 
 
 // ---- Servicios de Google simulados ----
 const sent = [], rows = { Leads: [['h']], Pedidos: [['h']], Errores: [['h']] };
-const props = { DB_ID: 'db', TEMPLATE_ID: 'tpl', LS_API_KEY: 'k', LS_STORE_ID: '42', CHECKOUT_PERSONAL: 'https://x.lemonsqueezy.com/buy/abc', SITE_URL: 'https://pulso.test' };
-let orderStatus = 'paid', orderStore = 42;
+const props = { DB_ID: 'db', LS_API_KEY: 'k', LS_STORE_ID: '42', CHECKOUT_PERSONAL: 'https://x.lemonsqueezy.com/buy/abc', SITE_URL: 'https://pulso.test' };
+let orderStatus = 'paid', orderStore = 42, licenseKeys = ['ABCD-1234-EFGH-5678'], licenseCalls = 0;
+const LICENSES = {
+  'GOOD-KEY-0001': { valid: true, license_key: { status: 'active' }, meta: { store_id: 42, product_id: 7 } },
+  'OTHER-STORE-01': { valid: true, license_key: { status: 'active' }, meta: { store_id: 99, product_id: 7 } },
+  'OTHER-PROD-001': { valid: true, license_key: { status: 'active' }, meta: { store_id: 42, product_id: 8 } },
+  'EXPIRED-KEY-01': { valid: true, license_key: { status: 'expired' }, meta: { store_id: 42, product_id: 7 } }
+};
 const sheet = name => ({
   getDataRange: () => ({ getValues: () => rows[name] }),
-  appendRow: r => rows[name].push(r)
+  appendRow: r => rows[name].push(r),
+  getRange: () => ({ setFontWeight() {} })
 });
-const blob = { getAs: () => ({ setName: () => ({ pdf: true }) }), setName: () => ({ xlsx: true }) };
+const cache = {};
+function fetchMock(url, opts) {
+  if (url.includes('/v1/licenses/validate')) {
+    licenseCalls++;
+    const key = opts.payload.license_key;
+    const body = LICENSES[key] || { valid: false, error: 'license_key not found.' };
+    return { getResponseCode: () => (LICENSES[key] ? 200 : 404), getContentText: () => JSON.stringify(body) };
+  }
+  if (url.includes('/v1/license-keys')) {
+    assert.ok(url.includes('filter[order_id]=9'));
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ data: licenseKeys.map(key => ({ attributes: { key } })) }) };
+  }
+  if (url.includes('/v1/orders/')) {
+    return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ data: { id: '9', attributes: { store_id: orderStore, status: orderStatus, user_email: 'comprador@test.com', user_name: 'Ana Pérez' } } }) };
+  }
+  throw new Error('URL inesperada ' + url);
+}
+const blob = { getAs: () => ({ setName: () => ({ pdf: true }) }) };
 const ctx = {
   console: { log() {}, error() {} },
   PropertiesService: { getScriptProperties: () => ({ getProperties: () => props, getProperty: k => props[k], setProperty: (k, v) => { props[k] = v; } }) },
-  SpreadsheetApp: { openById: () => ({ getSheetByName: sheet }) },
+  SpreadsheetApp: { openById: () => ({ getSheetByName: n => (rows[n] ? sheet(n) : null), insertSheet: n => { rows[n] = []; return sheet(n); } }) },
+  CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
   MailApp: { sendEmail: o => sent.push(o), getRemainingDailyQuota: () => 100 },
-  Utilities: { newBlob: html => { ctx.__lastHtml = html; return blob; }, formatDate: () => '02/11/2026' },
-  UrlFetchApp: { fetch: url => url.includes('lemonsqueezy')
-    ? { getResponseCode: () => 200, getContentText: () => JSON.stringify({ data: { id: '9', attributes: { store_id: orderStore, status: orderStatus, user_email: 'comprador@test.com', user_name: 'Ana Pérez' } } }) }
-    : { getResponseCode: () => 200, getBlob: () => blob } },
-  ScriptApp: { getOAuthToken: () => 't' },
+  Utilities: { newBlob: html => { ctx.__lastHtml = html; return blob; }, formatDate: () => '02/11/2026', sleep() {} },
+  UrlFetchApp: { fetch: fetchMock },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { createTextOutput: t => ({ setMimeType: () => JSON.parse(t), text: t }), MimeType: { JSON: 'json' } },
   Session: { getEffectiveUser: () => ({ getEmail: () => 'yo@marca.com' }) }
 };
 vm.createContext(ctx);
-vm.runInContext(gasSrc + '\n;globalThis.__gas = { score_, decode_, buildPlan_, reportHtml_, doPost, PROFILE, QUESTIONS, FLAGS, LEVELS, AREA_DETAIL };', ctx);
+vm.runInContext(gasSrc + '\n;globalThis.__gas = { score_, decode_, buildPlan_, reportHtml_, doPost, doGet, PROFILE, QUESTIONS, FLAGS, LEVELS, AREA_DETAIL };', ctx);
 const gas = ctx.__gas;
 
 // ---- Generador de códigos (3 de perfil + 12 respuestas) ----
@@ -102,8 +124,9 @@ console.log('✓ Extremos, bandera roja, potencial y validación de entradas');
 // ---- 3. Informe ----
 for (const c of [best, worst, '110101111121112']) {
   const res = gas.score_(gas.decode_(c));
-  const html = gas.reportHtml_(res, gas.decode_(c), 'Ana', { BRAND_NAME: 'Pulso Financiero' }, 'Perú <script>');
+  const html = gas.reportHtml_(res, gas.decode_(c), 'Ana', { BRAND_NAME: 'Pulso Financiero', SITE_URL: 'https://pulso.test' }, 'Perú <script>', 'K-1');
   assert.ok(html.includes('Tu plan de 30 días') && html.includes('Lo que revelan tus respuestas'));
+  assert.ok(html.includes('https://pulso.test/tablero/?licencia=K-1') && !/archivo|Excel|hoja/i.test(html.replace('archivo único', '')), 'El informe debe hablar del tablero, no de un archivo');
   assert.ok(html.includes('Perú &lt;script&gt;'), 'El país se escapa en el informe');
   assert.ok(!html.includes('undefined'), 'El informe tiene "undefined" para ' + c);
 }
@@ -118,6 +141,7 @@ assert.equal(sent.length, 1);
 assert.ok(sent[0].htmlBody.includes('checkout%5Bcustom%5D%5Br%5D=' + worst));
 assert.ok(sent[0].htmlBody.includes('checkout%5Bcustom%5D%5Bpais%5D=Per%C3%BA'));
 assert.ok(sent[0].htmlBody.includes('USD 9') && sent[0].htmlBody.includes('Lo que revelan'));
+assert.ok(sent[0].htmlBody.includes('https://pulso.test/tablero/?ejemplo') && !/archivo de presupuesto/.test(sent[0].htmlBody));
 assert.equal(rows.Leads.at(-1)[7], 'Perú');
 post({ type: 'lead', email: 'a@b.com', r: best, consent: true });
 const third = post({ type: 'lead', email: 'a@b.com', r: best, consent: true });
@@ -128,17 +152,51 @@ console.log('✓ Resumen gratis: valida correo y autorización, guarda el país 
 const order = (r, pais) => ({ meta: { event_name: 'order_created', custom_data: r ? { r, pais } : {} }, data: { id: '9' } });
 sent.length = 0;
 assert.equal(post(order(worst, 'Chile'), 'ls').ok, true);
-assert.equal(sent.length, 1); assert.equal(sent[0].attachments.length, 2); assert.equal(sent[0].to, 'comprador@test.com');
-assert.ok(ctx.__lastHtml.includes('Chile'));
-assert.equal(rows.Pedidos.at(-1)[7], 'Enviado'); assert.equal(rows.Pedidos.at(-1)[8], 'Chile');
+assert.equal(sent.length, 1); assert.equal(sent[0].attachments.length, 1); assert.equal(sent[0].to, 'comprador@test.com');
+assert.ok(sent[0].htmlBody.includes('https://pulso.test/tablero/?licencia=ABCD-1234-EFGH-5678') && sent[0].htmlBody.includes('Abrir mi tablero'));
+assert.ok(ctx.__lastHtml.includes('Chile') && ctx.__lastHtml.includes('?licencia=ABCD-1234-EFGH-5678'));
+assert.equal(rows.Pedidos.at(-1)[7], 'Enviado'); assert.equal(rows.Pedidos.at(-1)[8], 'Chile'); assert.equal(rows.Pedidos.at(-1)[9], 'Sí');
 assert.equal(post(order(worst), 'ls').duplicate, true); assert.equal(sent.length, 1);
 orderStatus = 'refunded'; rows.Pedidos = [['h']];
 assert.ok(post(order(worst), 'ls').ignored); assert.equal(sent.length, 1);
 orderStatus = 'paid'; orderStore = 99;
 assert.equal(post(order(worst), 'ls').ok, false); assert.equal(sent.length, 1);
 orderStore = 42; rows.Pedidos = [['h']];
-post(order(null), 'ls'); assert.ok(sent[1].subject.includes('falta un paso'));
+post(order(null), 'ls'); assert.ok(sent[1].subject.includes('falta un paso')); assert.ok(!sent[1].attachments);
+assert.ok(sent[1].htmlBody.includes('?licencia=ABCD-1234-EFGH-5678') && sent[1].htmlBody.includes('/prueba-personal/'));
 assert.ok(post({ meta: { event_name: 'subscription_created' }, data: { id: '1' } }, 'ls').ignored);
-console.log('✓ Pedido: verifica tienda y estado, no duplica envíos, guarda el país y maneja compras sin test');
+// Sin clave (producto sin licencias activadas): igual envía, avisa y registra el error
+licenseKeys = []; rows.Pedidos = [['h']]; const errs = rows.Errores.length;
+post(order(best), 'ls');
+assert.ok(sent.at(-1).htmlBody.includes('se está generando') && !sent.at(-1).htmlBody.includes('?licencia='));
+assert.equal(rows.Pedidos.at(-1)[9], 'No'); assert.ok(rows.Errores.length > errs);
+licenseKeys = ['ABCD-1234-EFGH-5678'];
+console.log('✓ Pedido: verifica tienda y estado, no duplica, busca la licencia y envía el enlace al tablero + PDF');
+
+// ---- 6. Validación de licencias ----
+const lic = key => gas.doGet({ parameter: { action: 'licencia', key } });
+assert.equal(lic('GOOD-KEY-0001').ok, true);
+assert.equal(lic('NO-EXISTE-0001').ok, false);
+assert.equal(lic('OTHER-STORE-01').ok, false);
+assert.equal(lic('EXPIRED-KEY-01').ok, false);
+assert.equal(lic('<script>').ok, false); assert.equal(lic('').ok, false);
+props.LS_PRODUCT_ID = '7';
+assert.equal(lic('OTHER-PROD-001').ok, false);
+const before = licenseCalls; assert.equal(lic('GOOD-KEY-0001').ok, true); assert.equal(licenseCalls, before, 'usa caché');
+delete props.LS_PRODUCT_ID;
+assert.equal(typeof gas.doGet({ parameter: {} }).text, 'string');
+console.log('✓ Licencias: valida tienda, producto y estado; rechaza formatos raros; usa caché');
+
+// ---- 7. Beta y comentarios ----
+delete rows.Beta; delete rows.Comentarios;
+assert.equal(post({ type: 'beta', email: 'x', consent: true }).ok, false);
+assert.equal(post({ type: 'beta', email: 'beta@test.com', consent: false }).ok, false);
+assert.equal(post({ type: 'beta', email: 'Beta@Test.com', consent: true }).ok, true);
+assert.equal(post({ type: 'beta', email: 'beta@test.com', consent: true }).duplicate, true);
+assert.equal(rows.Beta.length, 2); assert.equal(rows.Beta[1][1], 'beta@test.com');
+assert.equal(post({ type: 'feedback', text: '  ' }).ok, false);
+assert.equal(post({ type: 'feedback', text: 'Muy útil <b>el</b> radar', name: 'Ana', publish: true }).ok, true);
+assert.equal(rows.Comentarios[1][2], 'Muy útil bel/b radar'); assert.equal(rows.Comentarios[1][3], 'Sí');
+console.log('✓ Beta y comentarios: validan, no duplican y crean sus hojas');
 
 console.log('\nTodas las pruebas pasaron.');

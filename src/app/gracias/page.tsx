@@ -12,8 +12,8 @@ export default function Gracias() {
     <ProsePage>
       <div className="text-center">
         <CheckCircle2 className="mx-auto mb-4 size-14 text-primary" />
-        <h1>¡Gracias! Tu paquete va en camino</h1>
-        <p className="text-lg">En unos minutos te llega un correo con tu informe en PDF, el archivo de presupuesto y tu plan de 30 días.</p>
+        <h1>¡Gracias! Tu tablero está listo</h1>
+        <p className="text-lg">En unos minutos te llega un correo con el botón para abrir tu tablero, tu clave de acceso y tu informe en PDF.</p>
         <div className="my-7 rounded-2xl border bg-card p-6 text-left">
           <p className="!mb-0"><strong>¿No lo ves?</strong> Revisa la carpeta de spam o promociones. Si en 30 minutos no ha llegado, escríbenos a <a href={`mailto:${config.contactEmail}`}>{config.contactEmail}</a> con el correo que usaste al pagar.</p>
         </div>

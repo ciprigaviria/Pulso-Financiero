@@ -1,6 +1,8 @@
 # Pulso Financiero
 
-Sitio web con un test gratis de salud financiera personal. El diagnóstico es gratis; el **Paquete Personal** (informe PDF, plan de 30 días y archivo de presupuesto) se cobra con Lemon Squeezy y se entrega automáticamente por correo desde Apps Script.
+Plataforma con un test gratis de salud financiera personal y un **tablero personal** con visuales y recomendaciones. El test y una vista previa del tablero son gratis; el **tablero completo** se desbloquea con un pago único (Lemon Squeezy) y una clave de licencia que llega por correo desde Apps Script, junto con el informe PDF.
+
+Las cifras de cada persona (ingresos, gastos, deudas) se guardan **solo en su navegador** (`localStorage`); nunca llegan al servidor. El tablero tiene un botón de respaldo para llevarlas a otro dispositivo.
 
 Hecho con **Next.js + React + TypeScript + Tailwind CSS + shadcn/ui**, exportado como sitio estático y publicado en **GitHub Pages** con GitHub Actions.
 
@@ -11,20 +13,26 @@ Persona ──► Sitio (GitHub Pages) ──► hace el test; el puntaje se cal
                 │
                 ├─ deja su correo ──────────────► Apps Script ──► envía el resumen gratis
                 │
-                └─ compra ──► Lemon Squeezy ──► aviso de pago ──► Apps Script
-                                                                   ├─ confirma el pedido con la API
-                                                                   ├─ genera el informe PDF
-                                                                   └─ lo envía con el archivo de presupuesto
+                ├─ compra ──► Lemon Squeezy ──► aviso de pago ──► Apps Script
+                │                                                  ├─ confirma el pedido con la API
+                │                                                  ├─ busca la clave de licencia
+                │                                                  └─ envía enlace al tablero + clave + informe PDF
+                │
+                └─ abre /tablero/?licencia=CLAVE ──► Apps Script valida la clave con Lemon Squeezy
+                                                      └─ el tablero se desbloquea en ese navegador
 ```
 
 | Carpeta / archivo | Qué es |
 | --- | --- |
 | `src/config.ts` | **Lo único que editas** para conectar pago y correo o cambiar el precio |
 | `src/lib/scoring.js` | Preguntas, puntos, hallazgos, banderas rojas, potencial y plan de 30 días |
-| `src/app/` | Las páginas: inicio, test, privacidad, aviso legal y gracias |
-| `src/components/ui/` | Componentes (shadcn/ui y los adaptados: `pulso-features`, `pricing`, `score-gauge`…) |
+| `src/lib/finance.js` | Cálculos del tablero: margen, tasa de ahorro, fondo de emergencia, plan de deudas (avalancha y bola de nieve), proyección y recomendaciones |
+| `src/lib/sample.js` | Datos ficticios del tablero de ejemplo y de los perfiles ilustrativos |
+| `src/app/` | Las páginas: inicio, test, tablero, privacidad, aviso legal y gracias |
+| `src/components/dashboard/` | El tablero: gráficos, formulario de cifras, vista bloqueada y desbloqueada |
+| `src/components/home/` | Secciones de la página de inicio (portada, vista previa, perfiles, beta) |
 | `src/components/quiz/quiz.tsx` | El test y la pantalla de resultado |
-| `apps-script/` | Backend en Google Apps Script: correos, pagos, informe PDF y plantilla de presupuesto |
+| `apps-script/` | Backend en Google Apps Script: correos, pagos, licencias, beta, comentarios e informe PDF |
 | `tests/` | Pruebas: sitio vs Apps Script vs Python |
 | `.github/workflows/deploy.yml` | Compila, prueba y publica el sitio en cada cambio |
 
@@ -46,12 +54,13 @@ En el repositorio: **Settings → Pages → Build and deployment → Source: Git
 ### 2. Apps Script (correos y entrega del paquete)
 1. Con la cuenta de Google de la marca, abre [script.google.com](https://script.google.com) → **Nuevo proyecto**.
 2. Pega `apps-script/Code.gs`. En **Configuración del proyecto**, marca "Mostrar el archivo de manifiesto appsscript.json" y pega `apps-script/appsscript.json`.
-3. Ejecuta la función `setup` y acepta los permisos. Crea la base de datos y la plantilla de presupuesto en tu Drive.
+3. Ejecuta la función `setup` y acepta los permisos. Crea la base de datos en tu Drive (hojas Leads, Pedidos, Beta, Comentarios y Errores).
 4. **Implementar → Nueva implementación → Aplicación web**: ejecutar como *Yo*, acceso *Cualquier persona*. Copia la URL que termina en `/exec`.
-5. Ejecuta `probarInforme` y revisa tu correo: debe llegar un informe de ejemplo con el archivo adjunto.
+5. Ejecuta `probarInforme` y revisa tu correo: debe llegar el correo de compra de ejemplo con el informe PDF (la clave de ese correo es de prueba y no desbloquea nada).
 
 ### 3. Lemon Squeezy (pago)
-1. Crea una tienda y un producto **Paquete Personal**, pago único de USD 9 (precio de lanzamiento). No adjuntes archivos: la entrega la hace Apps Script. Cuando termine el lanzamiento, sube el precio a USD 29 aquí, en `src/config.ts` (`pricePersonal`) y en la propiedad `PRICE_PERSONAL` de Apps Script.
+1. Crea una tienda y un producto **Tablero completo**, pago único de USD 9 (precio de lanzamiento). No adjuntes archivos: la entrega la hace Apps Script. Cuando termine el lanzamiento, sube el precio a USD 29 aquí, en `src/config.ts` (`pricePersonal`) y en la propiedad `PRICE_PERSONAL` de Apps Script.
+   - En el producto activa **Generate license keys** (límite de activaciones: el que quieras, por ejemplo 3; sin vencimiento). Sin esto no hay clave y el tablero no se puede desbloquear.
 2. En el producto, **Confirmation modal → Button link**: `https://<tu sitio>/gracias/`.
 3. Copia el enlace de compra del producto (**Share**).
 4. **Settings → API**: crea una API key. **Settings → Stores**: copia el número de tu tienda (Store ID).
@@ -62,6 +71,7 @@ En el repositorio: **Settings → Pages → Build and deployment → Source: Git
 | --- | --- |
 | `LS_API_KEY` | La API key de Lemon Squeezy |
 | `LS_STORE_ID` | El número de tu tienda |
+| `LS_PRODUCT_ID` | El número del producto (opcional; si lo pones, solo se aceptan claves de ese producto) |
 | `CHECKOUT_PERSONAL` | El enlace de compra del producto |
 | `SITE_URL` | La dirección de tu sitio, sin `/` al final |
 | `BRAND_NAME` | El nombre final de la marca |
@@ -73,8 +83,12 @@ En GitHub abre `src/config.ts`, haz clic en el lápiz y pega `checkoutPersonal` 
 
 ### 5. Probar de punta a punta
 1. En Lemon Squeezy activa **Test mode** y haz una compra con la tarjeta de prueba `4242 4242 4242 4242`.
-2. Revisa que llegue el correo con el PDF y el Excel, y que el pedido aparezca en la hoja **Pedidos** de la base de datos.
+2. Revisa que llegue el correo con el botón **Abrir mi tablero**, la clave y el PDF; que el botón desbloquee el tablero; y que el pedido aparezca en la hoja **Pedidos** con "Clave enviada: Sí".
 3. Si algo falla, mira la hoja **Errores** y **Ejecuciones** en Apps Script.
+
+## Beta y comentarios
+- Quienes se inscriben en la beta (formulario de inicio) quedan en la hoja **Beta**. Para darles acceso gratis, crea en Lemon Squeezy un **descuento del 100 %** (Store → Discounts), limitado en usos, y envíales el enlace de compra con el código: el pedido sale por USD 0 y Apps Script les manda su clave como a cualquier comprador.
+- Los comentarios del tablero llegan a la hoja **Comentarios**, con la columna "Autoriza publicar". Publica en el sitio solo los que tengan "Sí", con el nombre tal como la persona lo escribió. No uses comentarios inventados: además de engañoso, en Colombia y la mayoría de países es publicidad engañosa.
 
 ## Antes de publicar
 - [ ] Revisar las páginas de privacidad y aviso legal (`src/app/privacidad`, `src/app/aviso-legal`) con un abogado. La ley colombiana de datos (Ley 1581) exige identificar al responsable del tratamiento: si no quieres que aparezca tu nombre, ese responsable puede ser una empresa (por ejemplo, una SAS) a nombre de la marca.

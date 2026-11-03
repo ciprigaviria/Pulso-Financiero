@@ -6,7 +6,7 @@
 export const config = {
   brand: "Pulso Financiero",
 
-  // Enlace de compra del Paquete Personal en Lemon Squeezy
+  // Enlace de compra del tablero completo en Lemon Squeezy
   // (Products > tu producto > Share > Checkout URL).
   checkoutPersonal: "",
 

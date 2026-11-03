@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx tests/scoring.test.mts && python3 tests/validate.py"
+    "test": "tsx tests/scoring.test.mts && python3 tests/validate.py && tsx tests/finance.test.mts && python3 tests/validate_finance.py"
   },
   "dependencies": {
     "@number-flow/react": "^0.5.10",

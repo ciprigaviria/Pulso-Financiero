@@ -17,13 +17,17 @@ export default function Privacidad() {
       <h2>Qué datos recogemos</h2>
       <ul>
         <li><strong>Respuestas del test:</strong> rangos de comportamiento financiero, país, rango de edad, tipo de ingreso y si tienes personas a cargo. Nunca pedimos montos, nombre ni documento de identidad.</li>
-        <li><strong>Correo electrónico:</strong> solo si lo escribes para recibir tu resumen o si compras el paquete.</li>
+        <li><strong>Correo electrónico:</strong> solo si lo escribes para recibir tu resumen, te inscribes en la beta o compras el tablero.</li>
+        <li><strong>Comentarios:</strong> si nos escribes desde el tablero, guardamos tu comentario y el nombre que pongas. Solo lo publicamos si marcas que nos autorizas.</li>
         <li><strong>Datos de compra:</strong> los procesa Lemon Squeezy como vendedor registrado; nosotros recibimos tu nombre, correo y el estado del pedido, nunca los datos de tu tarjeta.</li>
       </ul>
       <p>El puntaje se calcula en tu navegador. Si no dejas tu correo ni compras, tus respuestas no se envían a nuestros servidores.</p>
+      <h2>Las cifras de tu tablero</h2>
+      <p>Los montos que escribes en el tablero (ingresos, gastos, ahorros y deudas) se guardan solo en el almacenamiento local de tu navegador. No los recibimos ni los guardamos. Si borras los datos del navegador o cambias de dispositivo, se pierden, salvo que hayas descargado tu respaldo. Para desbloquear el tablero, tu navegador envía tu clave de licencia a nuestro servicio, que la verifica con Lemon Squeezy; esa verificación no incluye tus cifras.</p>
       <h2>Para qué los usamos</h2>
       <ul>
-        <li>Enviarte tu resumen gratuito o el paquete que compraste.</li>
+        <li>Enviarte tu resumen gratuito, tu acceso al tablero y tu informe.</li>
+        <li>Darte acceso a la beta y mejorar el producto con tus comentarios.</li>
         <li>Enviarte consejos de finanzas personales por correo, si lo autorizaste.</li>
         <li>Mejorar el test con estadísticas agregadas y anónimas.</li>
       </ul>

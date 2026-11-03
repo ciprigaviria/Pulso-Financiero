@@ -15,9 +15,9 @@ export function SiteHeader({ minimal = false }: { minimal?: boolean }) {
           <span className="text-sm text-muted-foreground">Test personal · 5 min</span>
         ) : (
           <nav className="flex items-center gap-6 text-sm font-semibold text-ink-2">
-            <a href="#como-funciona" className="hidden hover:text-foreground md:inline">Cómo funciona</a>
-            <a href="#precios" className="hidden hover:text-foreground md:inline">Precios</a>
-            <a href="#preguntas" className="hidden hover:text-foreground md:inline">Preguntas</a>
+            <Link href="/#tablero" className="hidden hover:text-foreground md:inline">El tablero</Link>
+            <Link href="/tablero" className="hidden hover:text-foreground md:inline">Mi tablero</Link>
+            <Link href="/#precios" className="hidden hover:text-foreground md:inline">Precios</Link>
             <Button asChild size="sm"><Link href="/prueba-personal">Hacer el test</Link></Button>
           </nav>
         )}
