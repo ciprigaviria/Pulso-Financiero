@@ -29,6 +29,8 @@ const DEFAULTS = {
   SITE_URL: 'https://tudominio.com',
   CHECKOUT_PERSONAL: '',
   REPLY_TO: '',
+  PRICE_PERSONAL: 'USD 9',
+  PRICE_REGULAR: 'USD 29',
   LEADS_PER_EMAIL_PER_DAY: '2'
 };
 
@@ -42,48 +44,48 @@ function cfg_() {
  * ============================================================ */
 
 const PROFILE = [
-  { id: 'pais', text: '¿En qué país vives?', options: ['Colombia', 'Guatemala', 'México', 'Otro país de Latinoamérica', 'Otro'] },
-  { id: 'edad', text: '¿Cuál es tu rango de edad?', options: ['18 a 25', '26 a 35', '36 a 45', '46 a 55', '56 o más'] },
-  { id: 'ingreso', text: '¿Cómo recibes tus ingresos?', options: ['Salario fijo', 'Independiente o por proyectos', 'Negocio propio', 'Una mezcla', 'Pensión'] },
-  { id: 'dependientes', text: '¿Alguien depende económicamente de ti?', options: ['Sí', 'No'] }
+  {"id":"edad","text":"¿Cuál es tu rango de edad?","options":["18 a 25","26 a 35","36 a 45","46 a 55","56 o más"]},
+  {"id":"ingreso","text":"¿Cómo recibes tus ingresos?","options":["Salario fijo","Independiente o por proyectos","Negocio propio","Una mezcla","Pensión"]},
+  {"id":"dependientes","text":"¿Alguien depende económicamente de ti?","options":["Sí","No"]}
 ];
 
 const AREAS = [
-  { id: 'gastar', name: 'Gastar' },
-  { id: 'ahorrar', name: 'Ahorrar' },
-  { id: 'deber', name: 'Deber' },
-  { id: 'proteger', name: 'Proteger' },
-  { id: 'planear', name: 'Planear' }
+  {"id":"gastar","name":"Gastar"},
+  {"id":"ahorrar","name":"Ahorrar"},
+  {"id":"deber","name":"Deber"},
+  {"id":"proteger","name":"Proteger"},
+  {"id":"planear","name":"Planear"}
 ];
 
+// Opciones de mejor a peor; points[i] e insights[i] corresponden a la opción i.
 const QUESTIONS = [
-  { n: 1, area: 'gastar', points: [100, 75, 50, 25, 0] },
-  { n: 2, area: 'gastar', points: [100, 60, 40, 20, 0] },
-  { n: 3, area: 'gastar', points: [100, 70, 40, 0] },
-  { n: 4, area: 'ahorrar', points: [100, 75, 50, 25, 0] },
-  { n: 5, area: 'ahorrar', points: [100, 75, 50, 20, 0] },
-  { n: 6, area: 'deber', points: [100, 85, 40, 0] },
-  { n: 7, area: 'deber', points: [100, 100, 50, 20, 0] },
-  { n: 8, area: 'deber', points: [100, 75, 50, 25, 0] },
-  { n: 9, area: 'proteger', points: [100, 75, 50, 25, 0] },
-  { n: 10, area: 'proteger', points: [100, 100, 60, 30, 0] },
-  { n: 11, area: 'planear', points: [100, 75, 40, 0] },
-  { n: 12, area: 'planear', points: [100, 65, 35, 15, 0] }
+  {"n":1,"area":"gastar","points":[100,75,50,25,0],"insights":["Gastaste mucho menos de lo que ganas: tienes margen real para ahorrar e invertir.","Gastas un poco menos de lo que ganas. Ese margen es tu motor de ahorro: protégelo.","Gastas casi todo lo que ganas: cualquier imprevisto te obliga a endeudarte.","Gastas más de lo que ganas. La diferencia la estás pagando con deuda o con ahorros que se agotan.","Gastas mucho más de lo que ganas: cada mes tu situación se vuelve más difícil de revertir."]},
+  {"n":2,"area":"gastar","points":[100,60,40,20,0],"insights":["Pagas todas tus cuentas a tiempo: cero intereses de mora.","Casi siempre pagas a tiempo, pero los pocos atrasos ya te cuestan intereses.","Parte de tus pagos se atrasa y esos recargos se suman mes a mes.","Muchos pagos se atrasan: pagas intereses de mora y arriesgas tu historial de crédito.","La mayoría de tus pagos se atrasa: tu historial de crédito está en riesgo."]},
+  {"n":3,"area":"gastar","points":[100,70,40,0],"insights":["Llevas un presupuesto y lo revisas: sabes a dónde va tu dinero.","Tienes presupuesto, pero sin revisarlo pierde su poder.","Solo tienes una idea general de tus gastos: los gastos pequeños se te escapan.","No llevas registro de tus gastos: es difícil mejorar lo que no mides."]},
+  {"n":4,"area":"ahorrar","points":[100,75,50,25,0],"insights":["Tu colchón cubre 6 meses o más de gastos: estás protegido ante un golpe fuerte.","Tu colchón cubre de 3 a 5 meses de gastos: estás dentro del rango recomendado.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para 1 o 2 meses. Lo recomendado son de 3 a 6.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para pocas semanas. Lo recomendado son de 3 a 6 meses.","Si hoy dejaras de recibir ingresos, no tendrías ni una semana de margen."]},
+  {"n":5,"area":"ahorrar","points":[100,75,50,20,0],"insights":["Ahorras 20% o más de tu ingreso: un ritmo excelente.","Ahorras entre 10% y 19% de tu ingreso: vas en un rango saludable.","Ahorras menos del 10% de tu ingreso: a ese ritmo tus metas tardarán años.","Ahorras solo de vez en cuando: sin un hábito fijo, el ahorro depende de que sobre.","No estás ahorrando cada mes: todo lo que ganas se va."]},
+  {"n":6,"area":"deber","points":[100,85,40,0],"insights":["No tienes deudas: todo tu ingreso trabaja para ti.","Tus deudas son manejables.","Tus deudas ya superan un poco lo que puedes manejar: es el momento de ordenarlas antes de que crezcan.","Tus deudas superan con creces lo que puedes pagar: necesitas un plan de salida."]},
+  {"n":7,"area":"deber","points":[100,100,50,20,0],"insights":["No dependes de la tarjeta de crédito.","Usas la tarjeta sin pagar intereses.","Pagas más del mínimo, pero mientras no pagues el total los intereses siguen corriendo.","Pagar solo el mínimo hace que lo que compras te cueste mucho más y tarde años en pagarse.","Atrasarte con la tarjeta suma intereses de mora y daña tu historial."]},
+  {"n":8,"area":"deber","points":[100,75,50,25,0],"insights":["Tu historial de crédito es excelente: accedes a mejores tasas.","Tu historial de crédito es bueno.","Tu historial de crédito es regular: probablemente pagas tasas más altas.","Tienes reportes negativos: tus créditos te salen más caros o te los niegan.","No conoces tu historial de crédito: revisarlo te dice cuánto te prestan y a qué tasa."]},
+  {"n":9,"area":"proteger","points":[100,75,50,25,0],"insights":["Un gasto médico grande lo cubre tu seguro.","Ante un gasto médico grande dependes del sistema público y de tus ahorros.","Ante un gasto médico grande dependes solo del sistema público.","Un gasto médico grande lo pagarías con deuda.","No sabrías cómo pagar un gasto médico grande: es uno de tus mayores riesgos."]},
+  {"n":10,"area":"proteger","points":[100,100,60,30,0],"insights":["Si te pasara algo grave, los tuyos quedarían protegidos.","Nadie depende de ti y tu salud está cubierta.","Tienes un seguro, pero no sabes si alcanza: revisarlo puede evitar una sorpresa.","Ante un evento grave solo cuentas con lo que da el empleo o la ley.","Si te pasara algo grave, no tienes ninguna protección."]},
+  {"n":11,"area":"planear","points":[100,75,40,0],"insights":["Ahorras para tu retiro más allá de lo obligatorio.","Para tu retiro solo cuentas con la pensión obligatoria.","Ahorras para tu retiro de forma irregular.","No estás ahorrando para tu retiro."]},
+  {"n":12,"area":"planear","points":[100,65,35,15,0],"insights":["Tienes metas con monto, fecha y plan.","Tienes metas, pero sin un plan de ahorro es difícil cumplirlas.","Tienes ideas, pero sin monto ni fecha no se vuelven realidad.","Has pensado poco en tus metas financieras.","No tienes metas financieras definidas."]}
 ];
 
 const FLAGS = [
-  { id: 'gasta_mas', q: 1, minIndex: 3, name: 'Gastas más de lo que ganas' },
-  { id: 'atrasos', q: 2, minIndex: 3, name: 'Atrasos frecuentes en tus pagos' },
-  { id: 'sin_colchon', q: 4, minIndex: 4, name: 'No tienes colchón para imprevistos' },
-  { id: 'deuda_inmanejable', q: 6, minIndex: 3, name: 'Tus deudas superan lo que puedes manejar' },
-  { id: 'tarjeta_limite', q: 7, minIndex: 3, name: 'Tu tarjeta de crédito te está costando caro' }
+  {"id":"gasta_mas","q":1,"minIndex":3,"name":"Gastas más de lo que ganas","action":"Identifica 3 gastos prescindibles y elimínalos durante 30 días."},
+  {"id":"atrasos","q":2,"minIndex":3,"name":"Atrasos frecuentes en tus pagos","action":"Pon recordatorios o pagos automáticos para cada cuenta fija."},
+  {"id":"sin_colchon","q":4,"minIndex":4,"name":"No tienes colchón para imprevistos","action":"Junta tu primer colchón equivalente a 1 semana de gastos antes que cualquier otra meta."},
+  {"id":"deuda_inmanejable","q":6,"minIndex":3,"name":"Tus deudas superan lo que puedes manejar","action":"Habla con tus acreedores para reestructurar antes de caer en mora."},
+  {"id":"tarjeta_limite","q":7,"minIndex":3,"name":"Tu tarjeta de crédito te está costando caro","action":"Deja de usar la tarjeta y paga más del mínimo cada mes hasta saldarla."}
 ];
 
 const LEVELS = [
-  { id: 'sana', min: 80, name: 'Sana', color: 'verde', message: 'Tus finanzas aguantan un golpe y avanzan hacia tus metas.' },
-  { id: 'estable', min: 60, name: 'Estable con alertas', color: 'amarillo', message: 'Vas bien, pero hay áreas que te pueden frenar.' },
-  { id: 'riesgo', min: 40, name: 'En riesgo', color: 'naranja', message: 'Un imprevisto te puede desestabilizar.' },
-  { id: 'vulnerable', min: 0, name: 'Vulnerable', color: 'rojo', message: 'Necesitas un plan de choque cuanto antes.' }
+  {"id":"sana","min":80,"name":"Sana","color":"verde","message":"Tus finanzas aguantan un golpe y avanzan hacia tus metas."},
+  {"id":"estable","min":60,"name":"Estable con alertas","color":"amarillo","message":"Vas bien, pero hay áreas que te pueden frenar."},
+  {"id":"riesgo","min":40,"name":"En riesgo","color":"naranja","message":"Un imprevisto te puede desestabilizar."},
+  {"id":"vulnerable","min":0,"name":"Vulnerable","color":"rojo","message":"Necesitas un plan de choque cuanto antes."}
 ];
 
 const FLAG_CAP = 59;
@@ -99,33 +101,50 @@ const AREA_MSG = {
 function round_(x) { return Math.floor(x + 0.5); }
 function areaColor_(s) { return s >= 80 ? 'verde' : s >= 50 ? 'amarillo' : 'rojo'; }
 
+function levelFor_(total, hasFlags) {
+  const s = hasFlags ? Math.min(total, FLAG_CAP) : total;
+  return LEVELS.filter(l => s >= l.min)[0];
+}
+
+// Código de 15 dígitos: 3 de perfil + 12 de preguntas. El país viaja aparte, como texto.
 function decode_(str) {
-  if (!/^\d{16}$/.test(str || '')) throw new Error('Código de respuestas inválido');
+  if (!/^\d{15}$/.test(str || '')) throw new Error('Código de respuestas inválido');
   const d = String(str).split('').map(Number);
-  const res = { profile: d.slice(0, 4), q: d.slice(4) };
+  const res = { profile: d.slice(0, 3), q: d.slice(3) };
   res.profile.forEach((v, i) => { if (v >= PROFILE[i].options.length) throw new Error('Perfil inválido'); });
   return res;
 }
 
+function cleanCountry_(s) { return String(s || '').replace(/[<>]/g, '').trim().slice(0, 40); }
+
 function score_(answers) {
   const q = answers.q;
-  const sums = {}, counts = {};
+  const sums = {}, counts = {}, worstQ = {}, bestQ = {};
   QUESTIONS.forEach((question, i) => {
     const idx = q[i];
     if (!(idx >= 0 && idx < question.points.length)) throw new Error('Respuesta inválida en la pregunta ' + question.n);
-    sums[question.area] = (sums[question.area] || 0) + question.points[idx];
+    const pts = question.points[idx];
+    sums[question.area] = (sums[question.area] || 0) + pts;
     counts[question.area] = (counts[question.area] || 0) + 1;
+    if (!worstQ[question.area] || pts < worstQ[question.area].pts) worstQ[question.area] = { pts: pts, text: question.insights[idx] };
+    if (!bestQ[question.area] || pts > bestQ[question.area].pts) bestQ[question.area] = { pts: pts, text: question.insights[idx] };
   });
   const areas = AREAS.map(a => {
     const s = sums[a.id] / counts[a.id];
     const color = areaColor_(s);
-    return { id: a.id, name: a.name, score: round_(s), raw: s, color: color, message: AREA_MSG[a.id][color] };
+    return { id: a.id, name: a.name, score: round_(s), raw: s, color: color, message: AREA_MSG[a.id][color], insight: worstQ[a.id].text, bestInsight: bestQ[a.id].text };
   });
   const total = round_(areas.reduce((acc, a) => acc + a.raw, 0) / areas.length);
-  const flags = FLAGS.filter(f => q[f.q - 1] >= f.minIndex).map(f => ({ id: f.id, name: f.name }));
-  const levelScore = flags.length ? Math.min(total, FLAG_CAP) : total;
-  const level = LEVELS.filter(l => levelScore >= l.min)[0];
-  return { total: total, level: level, areas: areas, flags: flags };
+  const flags = FLAGS.filter(f => q[f.q - 1] >= f.minIndex).map(f => ({ id: f.id, name: f.name, action: f.action }));
+  const level = levelFor_(total, flags.length > 0);
+  const sorted = areas.slice().sort((a, b) => a.raw - b.raw);
+  const weakest = sorted[0], strongest = sorted[sorted.length - 1];
+  let potential = null;
+  if (weakest.raw < 80) {
+    const newTotal = round_(areas.reduce((acc, a) => acc + (a.id === weakest.id ? 80 : a.raw), 0) / areas.length);
+    potential = { area: weakest.name, from: total, to: newTotal, level: levelFor_(newTotal, false) };
+  }
+  return { total: total, level: level, areas: areas, flags: flags, weakest: weakest, strongest: strongest, potential: potential };
 }
 
 /* ============================================================
@@ -181,18 +200,18 @@ const AREA_DETAIL = {
 };
 
 const FLAG_DETAIL = {
-  gasta_mas: { why: 'Gastar más de lo que ganas se paga con deuda o con ahorros que se agotan. Es la alerta más urgente.', action: 'Identifica 3 gastos prescindibles y elimínalos durante 30 días.' },
-  atrasos: { why: 'Los atrasos generan intereses de mora y pueden reportarte en las centrales de riesgo.', action: 'Pon recordatorios o pagos automáticos para cada cuenta fija.' },
-  sin_colchon: { why: 'Sin dinero disponible, cualquier imprevisto termina en deuda cara.', action: 'Junta tu primer colchón equivalente a 1 semana de gastos antes que cualquier otra meta.' },
-  deuda_inmanejable: { why: 'Si tus deudas superan lo que puedes pagar, cada mes empeora por los intereses.', action: 'Habla con tus acreedores para reestructurar antes de caer en mora.' },
-  tarjeta_limite: { why: 'Pagar solo el mínimo hace que una compra se pague durante años con intereses altos.', action: 'Deja de usar la tarjeta y paga más del mínimo cada mes hasta saldarla.' }
+  gasta_mas: { why: 'Gastar más de lo que ganas se paga con deuda o con ahorros que se agotan. Es la alerta más urgente.' },
+  atrasos: { why: 'Los atrasos generan intereses de mora y pueden reportarte en las centrales de riesgo.' },
+  sin_colchon: { why: 'Sin dinero disponible, cualquier imprevisto termina en deuda cara.' },
+  deuda_inmanejable: { why: 'Si tus deudas superan lo que puedes pagar, cada mes empeora por los intereses.' },
+  tarjeta_limite: { why: 'Pagar solo el mínimo hace que una compra se pague durante años con intereses altos.' }
 };
 
 const WEEK_TITLES = ['Semana 1: lo más urgente', 'Semana 2: ordenar', 'Semana 3: construir', 'Semana 4: consolidar'];
 
 // Plan de 30 días: primero las alertas, luego las áreas más débiles, 2 acciones por semana.
 function buildPlan_(res) {
-  const items = res.flags.map(f => FLAG_DETAIL[f.id].action);
+  const items = res.flags.map(f => f.action);
   const weak = res.areas.filter(a => a.color !== 'verde').sort((a, b) => a.raw - b.raw);
   for (let round = 0; round < 4 && items.length < 8; round++) {
     weak.forEach(a => {
@@ -251,11 +270,12 @@ function handleLead_(body) {
   const since = Date.now() - 24 * 3600 * 1000;
   const recent = sh.getDataRange().getValues().slice(1)
     .filter(r => String(r[1]).toLowerCase() === email && new Date(r[0]).getTime() > since).length;
-  sh.appendRow([new Date(), email, "'" + body.r, res.total, res.level.name, body.test || 'personal', 'Sí']);
+  const pais = cleanCountry_(body.pais);
+  sh.appendRow([new Date(), email, "'" + body.r, res.total, res.level.name, body.test || 'personal', 'Sí', pais]);
   if (recent >= limit) return { ok: true, throttled: true };
   if (MailApp.getRemainingDailyQuota() < 5) { logError_(new Error('Cuota de correo casi agotada'), email); return { ok: true, queued: false }; }
 
-  const buy = checkoutLink_(c.CHECKOUT_PERSONAL, body.r, email);
+  const buy = checkoutLink_(c.CHECKOUT_PERSONAL, body.r, email, pais);
   MailApp.sendEmail({
     to: email,
     subject: 'Tu resultado: ' + res.total + ' de 100 (' + res.level.name + ')',
@@ -266,9 +286,10 @@ function handleLead_(body) {
   return { ok: true };
 }
 
-function checkoutLink_(base, code, email) {
+function checkoutLink_(base, code, email, pais) {
   if (!base) return '';
   let url = base + (base.indexOf('?') > -1 ? '&' : '?') + encodeURIComponent('checkout[custom][r]') + '=' + code;
+  if (pais) url += '&' + encodeURIComponent('checkout[custom][pais]') + '=' + encodeURIComponent(pais);
   if (email) url += '&' + encodeURIComponent('checkout[email]') + '=' + encodeURIComponent(email);
   return url;
 }
@@ -298,10 +319,11 @@ function handleOrder_(payload) {
   let res = null;
   try { res = score_(decode_(custom.r)); } catch (err) { res = null; }
 
-  if (res) sendPackage_(email, name, custom.r, res, c);
+  const pais = cleanCountry_(custom.pais);
+  if (res) sendPackage_(email, name, custom.r, pais, res, c);
   else sendPackageWithoutTest_(email, name, c);
 
-  sh.appendRow([new Date(), orderId, email, name, custom.r ? "'" + custom.r : '', res ? res.total : '', res ? res.level.name : 'Sin test', 'Enviado']);
+  sh.appendRow([new Date(), orderId, email, name, custom.r ? "'" + custom.r : '', res ? res.total : '', res ? res.level.name : 'Sin test', 'Enviado', pais]);
   return { ok: true };
 }
 
@@ -319,9 +341,9 @@ function fetchOrder_(orderId, c) {
  * 5. ENVÍO DEL PAQUETE
  * ============================================================ */
 
-function sendPackage_(email, name, code, res, c) {
+function sendPackage_(email, name, code, pais, res, c) {
   const answers = decode_(code);
-  const pdf = Utilities.newBlob(reportHtml_(res, answers, name, c), 'text/html', 'informe.html')
+  const pdf = Utilities.newBlob(reportHtml_(res, answers, name, c, pais), 'text/html', 'informe.html')
     .getAs('application/pdf').setName('Informe de salud financiera - ' + c.BRAND_NAME + '.pdf');
   const attachments = [pdf];
   const xlsx = templateXlsx_(c);
@@ -401,11 +423,16 @@ function leadEmailHtml_(res, buy, c) {
     '<div style="display:inline-block;background:' + HEX[res.level.color] + ';color:#fff;font-weight:bold;padding:4px 12px;border-radius:999px;margin:6px 0 10px">' + esc_(res.level.name) + '</div>' +
     '<p style="color:' + HEX.ink2 + '">' + esc_(res.level.message) + '</p>' +
     (flag ? '<p style="background:#fbebeb;border:1px solid #f0c4c1;padding:12px;border-radius:8px"><b style="color:' + HEX.rojo + '">Alerta:</b> ' + esc_(flag.name) + '.</p>' : '') +
+    '<h2 style="font-size:16px;margin-top:24px">Lo que revelan tus respuestas</h2>' +
+    '<ul style="padding-left:18px;color:' + HEX.ink + '">' + res.areas.filter(x => x.color !== 'verde').sort((x, y) => x.raw - y.raw).slice(0, 3)
+      .map(x => '<li style="margin-bottom:6px"><b>' + esc_(x.name) + ':</b> ' + esc_(x.insight) + '</li>').join('') + '</ul>' +
+    (res.potential ? '<p style="background:' + HEX.soft + ';padding:12px;border-radius:8px"><b>Tu potencial: de ' + res.potential.from + ' a ' + res.potential.to + '.</b> Si llevas ' + esc_(res.potential.area) + ' a verde, tu puntaje sube a ' + res.potential.to + '.</p>' : '') +
     '<h2 style="font-size:16px;margin-top:24px">Tu semáforo por área</h2>' + areasTable_(res) +
     (buy ? '<div style="margin-top:28px;padding:20px;border:2px solid ' + HEX.brand + ';border-radius:12px">' +
       '<b style="font-size:16px">¿Quieres saber exactamente qué hacer?</b>' +
-      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">El Paquete Personal incluye tu informe en PDF, el archivo de presupuesto y plan de deudas, y un plan de acción de 30 días.</p>' +
-      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Quiero mi paquete</a></div>' : ''),
+      '<p style="color:' + HEX.ink2 + ';margin:8px 0 14px">Tu plan de 30 días ya está armado con tus respuestas. El Paquete Personal incluye el informe en PDF, el plan y el archivo de presupuesto y deudas.</p>' +
+      '<p style="margin:0 0 14px"><b style="font-size:22px">' + esc_(c.PRICE_PERSONAL) + '</b> pago único' + (c.PRICE_REGULAR ? ' · precio de lanzamiento (luego ' + esc_(c.PRICE_REGULAR) + ')' : '') + '</p>' +
+      '<a href="' + esc_(buy) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Quiero mi plan completo</a></div>' : ''),
     c);
 }
 
@@ -417,20 +444,20 @@ function packageEmailHtml_(name, res, c, withReport) {
       '<li><b>Archivo de presupuesto</b> en Excel, con fondo de emergencia, deudas y metas. Para usarlo en Google Sheets, súbelo a tu Google Drive y ábrelo con Hojas de cálculo.</li></ul>' +
       '<p>Empieza por la semana 1 del plan. Si tienes dudas, responde a este correo.</p>'
     : '<p>' + hello + '</p><p>Gracias por tu compra. No recibimos tus respuestas del test, así que adjuntamos tu archivo de presupuesto y te pedimos un paso más:</p>' +
-      '<p><a href="' + esc_(c.SITE_URL) + '/prueba-personal.html" style="color:' + HEX.brand + ';font-weight:bold">Haz el test aquí</a> y responde a este correo con tu puntaje; te enviaremos tu informe personalizado.</p>';
+      '<p><a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">Haz el test aquí</a> y responde a este correo con tu puntaje; te enviaremos tu informe personalizado.</p>';
   return shell_(body, c);
 }
 
-function reportHtml_(res, answers, name, c) {
+function reportHtml_(res, answers, name, c, pais) {
   const date = Utilities.formatDate(new Date(), 'America/Bogota', 'dd/MM/yyyy');
   const plan = buildPlan_(res);
-  const prof = PROFILE.map((p, i) => esc_(p.options[answers.profile[i]])).join(' · ');
+  const prof = [pais || 'País no indicado'].concat(PROFILE.map((p, i) => p.options[answers.profile[i]])).map(esc_).join(' · ');
   const h2 = 'style="font-size:18px;color:' + HEX.brand + ';margin:28px 0 8px;border-bottom:2px solid ' + HEX.soft + ';padding-bottom:6px"';
 
   const flagsHtml = res.flags.length
     ? res.flags.map(f => '<div style="background:#fbebeb;border-left:4px solid ' + HEX.rojo + ';padding:10px 14px;margin:8px 0">' +
         '<b style="color:' + HEX.rojo + '">' + esc_(f.name) + '</b><br>' + esc_(FLAG_DETAIL[f.id].why) +
-        '<br><b>Qué hacer primero:</b> ' + esc_(FLAG_DETAIL[f.id].action) + '</div>').join('')
+        '<br><b>Qué hacer primero:</b> ' + esc_(f.action) + '</div>').join('')
     : '<p>No tienes alertas rojas. Buen punto de partida.</p>';
 
   const areasDetail = res.areas.map(a => {
@@ -442,6 +469,16 @@ function reportHtml_(res, answers, name, c) {
       '<div style="font-size:13px"><b>' + (a.color === 'verde' ? 'Para mantenerlo:' : 'Qué hacer:') + '</b><ul style="margin:4px 0 0 18px;padding:0">' +
       acts.map(x => '<li>' + esc_(x) + '</li>').join('') + '</ul></div></div>';
   }).join('');
+
+  const insightsHtml = res.areas.slice().sort((x, y) => x.raw - y.raw).map(a =>
+    '<tr><td width="90" valign="top" style="font-weight:bold;border-bottom:1px solid ' + HEX.line + ';color:' + HEX[a.color] + '">' + esc_(a.name) + '</td>' +
+    '<td style="border-bottom:1px solid ' + HEX.line + '">' + esc_(a.insight) + '</td></tr>').join('');
+
+  const potentialHtml = res.potential
+    ? '<div style="background:' + HEX.soft + ';padding:12px 14px;margin-top:12px"><b>Tu potencial: de ' + res.potential.from + ' a ' + res.potential.to + '.</b> ' +
+      'Si llevas ' + esc_(res.potential.area) + ' a verde, tu puntaje subiría a ' + res.potential.to + ' (' + esc_(res.potential.level.name) + ')' +
+      (res.flags.length ? ', siempre que resuelvas también tus alertas' : '') + '. El plan de 30 días empieza por ahí.</div>'
+    : '';
 
   const planHtml = '<table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse;font-size:13px">' +
     plan.map(w => '<tr><td width="150" valign="top" style="font-weight:bold;border-bottom:1px solid ' + HEX.line + '">' + esc_(w.title) + '</td>' +
@@ -460,7 +497,9 @@ function reportHtml_(res, answers, name, c) {
     '<div>' + esc_(res.level.message) + '</div>' +
     '<div style="font-size:12px;color:' + HEX.ink2 + ';margin-top:6px">Escala: 80-100 Sana · 60-79 Estable con alertas · 40-59 En riesgo · 0-39 Vulnerable</div></td></tr></table>' +
 
-    '<h2 ' + h2 + '>Tu semáforo por área</h2>' + areasTable_(res) +
+    '<h2 ' + h2 + '>Tu semáforo por área</h2>' + areasTable_(res) + potentialHtml +
+    '<h2 ' + h2 + '>Lo que revelan tus respuestas</h2>' +
+    '<table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse;font-size:13px">' + insightsHtml + '</table>' +
     '<h2 ' + h2 + '>Alertas</h2>' + flagsHtml +
     '<h2 ' + h2 + '>Tu resultado, área por área</h2>' + areasDetail +
     '<h2 ' + h2 + '>Tu plan de 30 días</h2>' +
@@ -498,8 +537,8 @@ function setup() {
   if (!c.DB_ID) {
     const ss = SpreadsheetApp.create(c.BRAND_NAME + ' — Base de datos');
     const leads = ss.getSheets()[0].setName('Leads');
-    leads.appendRow(['Fecha', 'Correo', 'Código', 'Puntaje', 'Nivel', 'Test', 'Autorizó']);
-    ss.insertSheet('Pedidos').appendRow(['Fecha', 'Pedido', 'Correo', 'Nombre', 'Código', 'Puntaje', 'Nivel', 'Estado']);
+    leads.appendRow(['Fecha', 'Correo', 'Código', 'Puntaje', 'Nivel', 'Test', 'Autorizó', 'País']);
+    ss.insertSheet('Pedidos').appendRow(['Fecha', 'Pedido', 'Correo', 'Nombre', 'Código', 'Puntaje', 'Nivel', 'Estado', 'País']);
     ss.insertSheet('Errores').appendRow(['Fecha', 'Mensaje', 'Detalle']);
     ss.getSheets().forEach(s => s.getRange(1, 1, 1, s.getLastColumn()).setFontWeight('bold'));
     props.setProperty('DB_ID', ss.getId());
@@ -517,8 +556,8 @@ function setup() {
 function probarInforme() {
   const c = cfg_();
   const me = Session.getEffectiveUser().getEmail();
-  const code = '1110' + '101111121112'; // perfil + 12 respuestas de ejemplo
-  sendPackage_(me, 'Persona de prueba', code, score_(decode_(code)), c);
+  const code = '110' + '101111121112'; // 3 de perfil + 12 respuestas de ejemplo
+  sendPackage_(me, 'Persona de prueba', code, 'Colombia', score_(decode_(code)), c);
   console.log('Informe de prueba enviado a ' + me);
 }
 

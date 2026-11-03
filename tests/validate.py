@@ -1,5 +1,5 @@
 """Validación cruzada en Python: reimplementa las reglas de puntaje de forma independiente
-y compara contra lo que calcula el sitio (assets/js/scoring.js).
+y compara contra lo que calcula el sitio (src/lib/scoring.js).
 Uso: python3 tests/validate.py
 """
 import json, math, subprocess, sys, pathlib
@@ -22,7 +22,7 @@ def r(x):  # redondeo "mitad hacia arriba", igual que Math.floor(x + 0.5)
 
 
 def score(code):
-    q = [int(c) for c in code[4:]]
+    q = [int(c) for c in code[3:]]
     by_area = {a: [] for a in AREAS}
     for n, (area, pts) in POINTS.items():
         by_area[area].append(pts[q[n - 1]])
@@ -31,12 +31,15 @@ def score(code):
     flags = [f for f, n, m in FLAGS if q[n - 1] >= m]
     s = min(total, 59) if flags else total
     level = 'sana' if s >= 80 else 'estable' if s >= 60 else 'riesgo' if s >= 40 else 'vulnerable'
-    return {'total': total, 'level': level, 'areas': [r(x) for x in raw], 'flags': flags}
+    # Potencial: el área más débil (primera en caso de empate) llevada a 80.
+    w = min(range(5), key=lambda i: raw[i])
+    potential = r(sum(80 if i == w else raw[i] for i in range(5)) / 5) if raw[w] < 80 else None
+    return {'total': total, 'level': level, 'areas': [r(x) for x in raw], 'flags': flags, 'potential': potential}
 
 
-out = subprocess.run(['node', str(ROOT / 'tests/scoring.test.mjs'), '--dump', '20000'], capture_output=True, text=True, check=True)
+out = subprocess.run(['npx', 'tsx', str(ROOT / 'tests/scoring.test.mts'), '--dump', '20000'], capture_output=True, text=True, check=True, cwd=ROOT)
 js = json.loads(out.stdout)
-bad = [row for row in js if score(row['code']) != {k: row[k] for k in ('total', 'level', 'areas', 'flags')}]
+bad = [row for row in js if score(row['code']) != {k: row[k] for k in ('total', 'level', 'areas', 'flags', 'potential')}]
 levels = {}
 for row in js:
     levels[row['level']] = levels.get(row['level'], 0) + 1
