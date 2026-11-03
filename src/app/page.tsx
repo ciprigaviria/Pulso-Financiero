@@ -39,12 +39,12 @@ export default function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
-      <SiteHeader />
+      <SiteHeader tone="dark" />
       <main>
         <Hero />
 
-        <section id="como-funciona" className="mx-auto max-w-6xl scroll-mt-20 px-5 pb-16">
-          <div className="grid gap-x-10 gap-y-8 border-t pt-10 md:grid-cols-3">
+        <section id="como-funciona" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-16">
+          <div className="grid gap-x-10 gap-y-8 md:grid-cols-3">
             {STEPS.map((s) => (
               <div key={s.n}>
                 <div className="font-num text-sm text-primary">{s.n}</div>

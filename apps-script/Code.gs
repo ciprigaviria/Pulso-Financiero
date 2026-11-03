@@ -5,7 +5,8 @@
  *  1. Recibe los correos de quienes piden su resumen gratis y se lo envía.
  *  2. Recibe el aviso de pago de Lemon Squeezy, verifica el pedido con su API,
  *     busca la clave de licencia y envía el enlace al tablero + el informe PDF.
- *  3. Valida claves de licencia para el tablero (GET ?action=licencia&key=...).
+ *  3. Valida claves de licencia para el tablero (GET ?action=licencia&key=...), incluidos
+ *     los códigos de cortesía (membresías gratis) que creas con crearCodigoCortesia().
  *  4. Guarda inscripciones a la beta y comentarios del tablero.
  *  5. Crea la base de datos (Google Sheets).
  *
@@ -246,6 +247,7 @@ function doGet(e) {
 function validateLicense_(key, c) {
   key = String(key || '').trim();
   if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return { ok: false, error: 'La clave no tiene el formato correcto.' };
+  if (courtesyCodes_(c).indexOf(key.toUpperCase()) > -1) return { ok: true, courtesy: true };
   const cache = CacheService.getScriptCache();
   const hit = cache.get('lic_' + key);
   if (hit) return JSON.parse(hit);
@@ -271,6 +273,30 @@ function validateLicense_(key, c) {
   else out = { ok: true };
   cache.put('lic_' + key, JSON.stringify(out), out.ok ? 21600 : 300);
   return out;
+}
+
+/* ---------- Códigos de cortesía (membresías gratis) ---------- */
+
+/** Códigos que desbloquean el tablero sin pago: propiedad CODIGOS_CORTESIA, separados por coma. */
+function courtesyCodes_(c) {
+  return String(c.CODIGOS_CORTESIA || '').split(/[\s,;]+/).map(x => x.trim().toUpperCase()).filter(Boolean);
+}
+
+/**
+ * Crea un código de cortesía nuevo (para ti, para la beta o para un aliado) y lo deja activo.
+ * Ejecútalo desde el editor; el código y el enlace directo aparecen en el registro y en la hoja "Cortesías".
+ * Para revocar un código, bórralo de la propiedad CODIGOS_CORTESIA.
+ */
+function crearCodigoCortesia(nota) {
+  const c = cfg_();
+  const raw = Utilities.getUuid().replace(/-/g, '').toUpperCase();
+  const code = 'PULSO-' + raw.slice(0, 4) + '-' + raw.slice(4, 8);
+  const list = courtesyCodes_(c).concat([code]);
+  PropertiesService.getScriptProperties().setProperty('CODIGOS_CORTESIA', list.join(','));
+  const link = boardLink_(c, code);
+  sheet_('Cortesías', ['Fecha', 'Código', 'Nota', 'Enlace']).appendRow([new Date(), code, typeof nota === 'string' ? nota : 'Cortesía', link]);
+  console.log('Código de cortesía: ' + code + '\nEnlace directo: ' + link);
+  return code;
 }
 
 /** Busca la clave de licencia de un pedido. Lemon Squeezy la crea unos segundos después del pago. */
@@ -626,7 +652,7 @@ function setup() {
   const props = PropertiesService.getScriptProperties();
   const c = cfg_();
   Object.keys(DEFAULTS).forEach(k => { if (!props.getProperty(k)) props.setProperty(k, DEFAULTS[k]); });
-  ['LS_API_KEY', 'LS_STORE_ID', 'LS_PRODUCT_ID'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
+  ['LS_API_KEY', 'LS_STORE_ID', 'LS_PRODUCT_ID', 'CODIGOS_CORTESIA'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
 
   if (!c.DB_ID) {
     const ss = SpreadsheetApp.create(c.BRAND_NAME + ' — Base de datos');
@@ -635,6 +661,7 @@ function setup() {
     ss.insertSheet('Pedidos').appendRow(['Fecha', 'Pedido', 'Correo', 'Nombre', 'Código', 'Puntaje', 'Nivel', 'Estado', 'País', 'Clave enviada']);
     ss.insertSheet('Beta').appendRow(['Fecha', 'Correo', 'Autorizó', 'Estado']);
     ss.insertSheet('Comentarios').appendRow(['Fecha', 'Nombre', 'Comentario', 'Autoriza publicar', 'Revisado']);
+    ss.insertSheet('Cortesías').appendRow(['Fecha', 'Código', 'Nota', 'Enlace']);
     ss.insertSheet('Errores').appendRow(['Fecha', 'Mensaje', 'Detalle']);
     ss.getSheets().forEach(s => s.getRange(1, 1, 1, s.getLastColumn()).setFontWeight('bold'));
     props.setProperty('DB_ID', ss.getId());

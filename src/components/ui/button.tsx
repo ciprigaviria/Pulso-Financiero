@@ -16,6 +16,9 @@ const buttonVariants = cva(
         dark:
           "bg-gradient-to-t from-neutral-900 to-neutral-700 text-white border border-neutral-700 shadow-lg shadow-neutral-900/30 hover:-translate-y-px",
         ghost: "hover:bg-accent hover:text-accent-foreground",
+        white:
+          "bg-gradient-to-b from-white via-white/95 to-white/70 text-black shadow-lg shadow-white/10 hover:scale-[1.03] active:scale-95",
+        "ghost-dark": "border border-white/15 bg-white/5 text-white hover:bg-white/10",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

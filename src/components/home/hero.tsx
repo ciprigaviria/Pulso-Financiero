@@ -1,88 +1,93 @@
 "use client"
 
+// Portada en negro, inspirada en la plantilla "SaaS template": aviso tipo píldora, título blanco
+// con degradado, botón blanco y, debajo, el tablero real (no una imagen) dentro de un marco con brillo.
+// El tablero del marco usa los datos de ejemplo en la moneda del visitante.
 import * as React from "react"
 import Link from "next/link"
 import { motion } from "motion/react"
-import { ArrowRight, Clock, Lock } from "lucide-react"
+import { ArrowRight, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { BentoCard, CountUp, Radar, Tooltip, type TipApi } from "@/components/dashboard/charts"
-import * as S from "@/lib/scoring"
-import * as F from "@/lib/finance"
-import { SAMPLE } from "@/lib/sample"
-import { moneyFormatter } from "@/lib/money"
-import { useSampleData } from "@/lib/use-country"
+import { useSize } from "@/components/dashboard/charts"
+import { DashboardView } from "@/components/dashboard/dashboard-view"
 import { CountryPicker } from "@/components/site/country-picker"
+import { SAMPLE } from "@/lib/sample"
+import { useSampleData } from "@/lib/use-country"
+
+/** Muestra un componente ancho escalado para que quepa en el contenedor, como una captura viva. */
+function ScaledPreview({ children, width, visibleHeight }: { children: React.ReactNode; width: number; visibleHeight: number }) {
+  const [ref, { w }] = useSize()
+  const scale = w ? Math.min(1, w / width) : 0
+  return (
+    <div ref={ref} className="relative w-full overflow-hidden" style={{ height: w ? visibleHeight * scale : visibleHeight * 0.5 }}>
+      <div inert aria-hidden="true" style={{ width, transform: `scale(${scale})`, transformOrigin: "top left", opacity: scale ? 1 : 0, transition: "opacity .4s" }}>
+        {children}
+      </div>
+    </div>
+  )
+}
 
 export function Hero() {
-  const tip = React.useRef<TipApi | null>(null)
-  const test = S.score(S.decode(SAMPLE.testCode))
   const data = useSampleData()
-  const s = F.summarize(data)
-  const fmt = moneyFormatter(data.currency, data.locale)
-  const plan = F.surplusPlan(data, s)
-  const COLORS: Record<string, string> = { colchon: "#0e7c66", deudas: "#d6453d", metas: "#f2b84b", largo: "#3d6fd6" }
+  const [frameRef, { w }] = useSize()
+  const inner = w && w < 640 ? 860 : 1180
+
   return (
-    <section className="pb-16 pt-12 md:pt-16">
-      <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 md:grid-cols-[1fr_1fr]">
-        <div>
-          <p className="mb-4 inline-flex rounded-full bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">Finanzas para no financieros</p>
-          <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight md:text-[3.6rem]">
-            Conoce tu excedente mensual y <span className="font-serif font-normal italic text-primary">ponlo a trabajar</span>.
-          </h1>
-          <p className="mt-5 max-w-[48ch] text-lg text-ink-2">
-            Tu excedente es lo que te queda cada mes después de gastos y deudas. Haz tu diagnóstico gratis en 5 minutos y activa tu tablero: distribución de tus gastos, plan de desendeudamiento y en qué instrumentos ubicar tu excedente según tu objetivo.
-          </p>
-          <div className="mb-5 mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-            <Button asChild size="lg" variant="outline"><Link href="/tablero?ejemplo">Ver un tablero de ejemplo</Link></Button>
+    <section className="relative overflow-hidden bg-black text-white">
+      {/* brillo y cuadrícula de fondo */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[38%] mx-auto h-[620px] max-w-5xl rounded-full opacity-60 blur-3xl"
+        style={{ background: "radial-gradient(ellipse at center, rgba(20,184,143,.45), rgba(20,184,143,.08) 45%, transparent 70%)" }} />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "64px 64px", maskImage: "radial-gradient(ellipse at 50% 0%, black 20%, transparent 65%)" }} />
+
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
+        className="relative mx-auto flex max-w-6xl flex-col items-center px-5 pb-10 pt-14 text-center md:pt-20">
+        <aside className="mb-8 inline-flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs backdrop-blur-sm">
+          <span className="font-semibold text-white">Finanzas para no financieros</span>
+          <span className="hidden text-white/30 sm:inline">·</span>
+          <span className="text-white/60">Ahora en la moneda de tu país</span>
+          <Link href="/tablero?ejemplo" className="flex items-center gap-1 text-white/60 transition-colors hover:text-white">
+            Ver ejemplo <ArrowRight className="size-3" />
+          </Link>
+        </aside>
+
+        <h1 className="max-w-5xl text-[2.6rem] font-semibold leading-[1.04] tracking-[-0.04em] md:text-6xl lg:text-[4.25rem]"
+          style={{ background: "linear-gradient(to bottom, #fff 30%, rgba(255,255,255,.62))", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+          Conoce tu excedente mensual <br className="hidden sm:block" />y <span className="font-serif font-normal italic tracking-[-0.01em]">ponlo a trabajar</span>
+        </h1>
+
+        <p className="mt-6 max-w-2xl text-base text-white/60 md:text-lg">
+          Tu excedente es lo que te queda cada mes después de gastos y deudas. Haz tu diagnóstico gratis en 5 minutos y activa tu tablero: distribución de gastos, plan de desendeudamiento y en qué instrumentos ubicar tu excedente.
+        </p>
+
+        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <Button asChild size="lg" variant="white" className="rounded-lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
+          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/tablero?ejemplo">Ver un tablero de ejemplo</Link></Button>
+        </div>
+        <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Tus cifras se quedan en tu navegador · Gratis y sin registro</p>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}
+        className="relative mx-auto max-w-6xl px-3 pb-16 sm:px-5">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 shadow-[0_0_80px_-20px_rgba(20,184,143,.5)] sm:p-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5 px-2 pt-0.5 sm:mb-2.5">
+            <i className="size-2.5 rounded-full bg-white/20" /><i className="size-2.5 rounded-full bg-white/20" /><i className="size-2.5 rounded-full bg-white/20" />
+            <span className="mx-auto hidden rounded-md bg-white/5 px-3 py-0.5 text-[11px] text-white/40 sm:block">pulso · mi tablero</span>
           </div>
-          <div className="flex flex-wrap gap-5 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus respuestas y cifras se quedan en tu navegador</span>
-            <span className="flex items-center gap-1.5"><Clock className="size-4 text-primary" />Gratis y sin registro</span>
+          <div ref={frameRef} className="overflow-hidden rounded-xl bg-background">
+            <div className="p-3 sm:p-4">
+              <ScaledPreview width={inner} visibleHeight={inner < 1000 ? 1500 : 1180}>
+                <DashboardView key={data.currency} data={data} testCode={SAMPLE.testCode} readOnly />
+              </ScaledPreview>
+            </div>
           </div>
         </div>
-
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.6 }} className="relative">
-          <div className="grid grid-cols-2 gap-3">
-            <BentoCard className="p-4">
-              <div className="text-xs font-semibold text-muted-foreground">Excedente mensual</div>
-              <div className="mt-1.5 font-num text-2xl font-bold"><CountUp value={s.margin} format={fmt.compact} /></div>
-              <div className="mt-1 text-xs text-muted-foreground">Tasa de ahorro {Math.round(s.savingsRate * 100)}%</div>
-            </BentoCard>
-            <BentoCard className="p-4">
-              <div className="text-xs font-semibold text-muted-foreground">Libre de deudas en</div>
-              <div className="mt-1.5 font-num text-2xl font-bold"><CountUp value={F.payoff(s.debts, data.extraDebtPayment).months || 0} format={(n) => Math.round(n) + " meses"} /></div>
-              <div className="mt-1 text-xs text-muted-foreground">Con un abono extra de {fmt.compact(data.extraDebtPayment)}</div>
-            </BentoCard>
-            <BentoCard className="col-span-2 p-4">
-              <div className="text-sm font-bold">Plan para tu excedente</div>
-              <div className="mt-3 flex h-3 overflow-hidden rounded-full">
-                {plan.split.map((x) => <div key={x.id} style={{ width: `${x.pct * 100}%`, background: COLORS[x.id] }} />)}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                {plan.split.map((x) => (
-                  <span key={x.id} className="flex items-center gap-1.5 text-ink-2">
-                    <i className="size-2 rounded-[2px]" style={{ background: COLORS[x.id] }} />{F.BUCKETS.find((b) => b.id === x.id)!.name}
-                    <b className="font-num text-foreground">{fmt.compact(x.amount)}</b>
-                  </span>
-                ))}
-              </div>
-            </BentoCard>
-            <BentoCard className="col-span-2 p-4">
-              <div className="flex items-baseline justify-between">
-                <div className="text-sm font-bold">Perfil financiero por áreas</div>
-                <div className="text-xs text-muted-foreground">{test.total}/100 · {test.level.name}</div>
-              </div>
-              <Radar tip={tip} values={test.areas.map((a) => a.score)} axis={test.areas.map((a) => a.name)} size={220} />
-            </BentoCard>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground">Ejemplo ilustrativo con datos ficticios</p>
-            <CountryPicker />
-          </div>
-          <Tooltip api={tip} />
-        </motion.div>
-      </div>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent via-black/85 to-black" />
+        <div className="relative -mt-24 flex flex-wrap items-center justify-center gap-3">
+          <p className="text-xs text-white/50">Ejemplo ilustrativo con datos ficticios</p>
+          <CountryPicker tone="dark" />
+        </div>
+      </motion.div>
     </section>
   )
 }

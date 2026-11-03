@@ -50,14 +50,14 @@ const ctx = {
   SpreadsheetApp: { openById: () => ({ getSheetByName: n => (rows[n] ? sheet(n) : null), insertSheet: n => { rows[n] = []; return sheet(n); } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache[k] || null, put: (k, v) => { cache[k] = v; } }) },
   MailApp: { sendEmail: o => sent.push(o), getRemainingDailyQuota: () => 100 },
-  Utilities: { newBlob: html => { ctx.__lastHtml = html; return blob; }, formatDate: () => '02/11/2026', sleep() {} },
+  Utilities: { newBlob: html => { ctx.__lastHtml = html; return blob; }, formatDate: () => '02/11/2026', sleep() {}, getUuid: () => 'ab12cd34-0000-4000-8000-000000000000' },
   UrlFetchApp: { fetch: fetchMock },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   ContentService: { createTextOutput: t => ({ setMimeType: () => JSON.parse(t), text: t }), MimeType: { JSON: 'json' } },
   Session: { getEffectiveUser: () => ({ getEmail: () => 'yo@marca.com' }) }
 };
 vm.createContext(ctx);
-vm.runInContext(gasSrc + '\n;globalThis.__gas = { score_, decode_, buildPlan_, reportHtml_, doPost, doGet, PROFILE, QUESTIONS, FLAGS, LEVELS, AREA_DETAIL };', ctx);
+vm.runInContext(gasSrc + '\n;globalThis.__gas = { score_, decode_, buildPlan_, reportHtml_, doPost, doGet, crearCodigoCortesia, PROFILE, QUESTIONS, FLAGS, LEVELS, AREA_DETAIL };', ctx);
 const gas = ctx.__gas;
 
 // ---- Generador de códigos (3 de perfil + 12 respuestas) ----
@@ -185,7 +185,20 @@ assert.equal(lic('OTHER-PROD-001').ok, false);
 const before = licenseCalls; assert.equal(lic('GOOD-KEY-0001').ok, true); assert.equal(licenseCalls, before, 'usa caché');
 delete props.LS_PRODUCT_ID;
 assert.equal(typeof gas.doGet({ parameter: {} }).text, 'string');
-console.log('✓ Licencias: valida tienda, producto y estado; rechaza formatos raros; usa caché');
+// Códigos de cortesía: se aceptan sin consultar a Lemon Squeezy, sin importar mayúsculas.
+props.CODIGOS_CORTESIA = 'PULSO-QQQQ-1111, pulso-zzzz-9999';
+const calls0 = licenseCalls;
+assert.equal(lic('PULSO-QQQQ-1111').ok, true); assert.equal(lic('pulso-zzzz-9999').ok, true);
+assert.equal(lic('PULSO-NOPE-0000').ok, false);
+assert.equal(licenseCalls, calls0 + 1, 'solo el código desconocido consulta a Lemon Squeezy');
+const nuevo = gas.crearCodigoCortesia('Revisión del dueño');
+assert.equal(nuevo, 'PULSO-AB12-CD34'); assert.ok(props.CODIGOS_CORTESIA.endsWith(',PULSO-AB12-CD34'));
+assert.equal(lic('PULSO-AB12-CD34').ok, true);
+assert.equal(rows['Cortesías'].at(-1)[1], 'PULSO-AB12-CD34'); assert.equal(rows['Cortesías'].at(-1)[3], 'https://pulso.test/tablero/?licencia=PULSO-AB12-CD34');
+props.CODIGOS_CORTESIA = 'PULSO-QQQQ-1111';
+assert.equal(lic('PULSO-AB12-CD34').ok, false, 'un código borrado de la propiedad deja de funcionar');
+delete props.CODIGOS_CORTESIA;
+console.log('✓ Licencias: valida tienda, producto y estado; rechaza formatos raros; usa caché; acepta y revoca códigos de cortesía');
 
 // ---- 7. Beta y comentarios ----
 delete rows.Beta; delete rows.Comentarios;

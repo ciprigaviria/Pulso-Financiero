@@ -2,10 +2,12 @@ import Link from "next/link"
 import { BrandMark } from "./brand-mark"
 import { Button } from "@/components/ui/button"
 import { config } from "@/config"
+import { cn } from "@/lib/utils"
 
-export function SiteHeader({ minimal = false }: { minimal?: boolean }) {
+export function SiteHeader({ minimal = false, tone = "light" }: { minimal?: boolean; tone?: "light" | "dark" }) {
+  const dark = tone === "dark"
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur-md">
+    <header className={cn("sticky top-0 z-30 border-b backdrop-blur-md", dark ? "border-white/10 bg-black/95 text-white" : "bg-background/80")}>
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Link href="/" className="flex items-center gap-2.5 font-extrabold tracking-tight" aria-label={`${config.brand}, inicio`}>
           <BrandMark />
@@ -14,12 +16,11 @@ export function SiteHeader({ minimal = false }: { minimal?: boolean }) {
         {minimal ? (
           <span className="text-sm text-muted-foreground">Test personal · 5 min</span>
         ) : (
-          <nav className="flex items-center gap-6 text-sm font-semibold text-ink-2">
-            <Link href="/#tablero" className="hidden hover:text-foreground md:inline">El tablero</Link>
-            <Link href="/tablero" className="hidden hover:text-foreground md:inline">Mi tablero</Link>
-            <Link href="/#acceso" className="hidden hover:text-foreground md:inline">Cómo funciona</Link>
-            <Link href="/#precios" className="hidden hover:text-foreground md:inline">Precios</Link>
-            <Button asChild size="sm"><Link href="/prueba-personal">Hacer el test</Link></Button>
+          <nav className={cn("flex items-center gap-6 text-sm font-semibold", dark ? "text-white/60" : "text-ink-2")}>
+            {[["/#tablero", "El tablero"], ["/tablero", "Mi tablero"], ["/#acceso", "Cómo funciona"], ["/#precios", "Precios"]].map(([href, label]) => (
+              <Link key={href} href={href} className={cn("hidden transition-colors md:inline", dark ? "hover:text-white" : "hover:text-foreground")}>{label}</Link>
+            ))}
+            <Button asChild size="sm" variant={dark ? "white" : "default"} className={dark ? "rounded-lg" : undefined}><Link href="/prueba-personal">Hacer el test</Link></Button>
           </nav>
         )}
       </div>

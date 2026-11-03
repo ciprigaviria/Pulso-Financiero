@@ -72,6 +72,7 @@ En el repositorio: **Settings → Pages → Build and deployment → Source: Git
 | `LS_API_KEY` | La API key de Lemon Squeezy |
 | `LS_STORE_ID` | El número de tu tienda |
 | `LS_PRODUCT_ID` | El número del producto (opcional; si lo pones, solo se aceptan claves de ese producto) |
+| `CODIGOS_CORTESIA` | Códigos de membresía gratis, separados por coma (se llena solo con `crearCodigoCortesia`) |
 | `CHECKOUT_PERSONAL` | El enlace de compra del producto |
 | `SITE_URL` | La dirección de tu sitio, sin `/` al final |
 | `BRAND_NAME` | El nombre final de la marca |
@@ -86,8 +87,14 @@ En GitHub abre `src/config.ts`, haz clic en el lápiz y pega `checkoutPersonal` 
 2. Revisa que llegue el correo con el botón **Abrir mi tablero**, la clave y el PDF; que el botón desbloquee el tablero; y que el pedido aparezca en la hoja **Pedidos** con "Clave enviada: Sí".
 3. Si algo falla, mira la hoja **Errores** y **Ejecuciones** en Apps Script.
 
+## Membresías gratis (códigos de cortesía)
+Sirven para revisar el tablero como cliente, para la beta y para aliados, sin pasar por Lemon Squeezy.
+1. En Apps Script, elige la función `crearCodigoCortesia` y pulsa **Ejecutar**. En el registro aparece el código (por ejemplo `PULSO-7F3A-91C2`) y un enlace directo `…/tablero/?licencia=PULSO-7F3A-91C2`; también queda en la hoja **Cortesías**.
+2. Envía el enlace. Al abrirlo, el tablero se desbloquea en ese navegador; también pueden escribir el código en "¿Ya compraste? Escribe tu clave".
+3. Para revocar un código, bórralo de la propiedad `CODIGOS_CORTESIA` (Configuración del proyecto → Propiedades del script). Deja de servir para nuevos ingresos; quien ya lo activó conserva el acceso en ese navegador.
+
 ## Beta y comentarios
-- Quienes se inscriben en la beta (formulario de inicio) quedan en la hoja **Beta**. Para darles acceso gratis, crea en Lemon Squeezy un **descuento del 100 %** (Store → Discounts), limitado en usos, y envíales el enlace de compra con el código: el pedido sale por USD 0 y Apps Script les manda su clave como a cualquier comprador.
+- Quienes se inscriben en la beta (formulario de inicio) quedan en la hoja **Beta**. Para darles acceso gratis, créales un código de cortesía (arriba). Si prefieres que pasen por el checkout, crea en Lemon Squeezy un **descuento del 100 %** (Store → Discounts) limitado en usos: el pedido sale por USD 0 y Apps Script les manda su clave como a cualquier comprador.
 - Los comentarios del tablero llegan a la hoja **Comentarios**, con la columna "Autoriza publicar". Publica en el sitio solo los que tengan "Sí", con el nombre tal como la persona lo escribió. No uses comentarios inventados: además de engañoso, en Colombia y la mayoría de países es publicidad engañosa.
 
 ## Antes de publicar
