@@ -16,6 +16,7 @@ import { BentoCard, Radar, Tooltip, type TipApi } from "./charts"
 import { DashboardView } from "./dashboard-view"
 import { NumbersForm } from "./numbers-form"
 import { cn } from "@/lib/utils"
+import { AccessSteps } from "@/components/home/access-steps"
 
 type Mode = "loading" | "demo" | "locked" | "unlocked"
 
@@ -161,7 +162,7 @@ function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onU
                 <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><ArrowUp className="size-5" /></div>
                 <div>
                   <div className="text-xs font-bold uppercase tracking-widest text-primary">Tu potencial</div>
-                  <div className="font-mono text-2xl font-medium">{res.potential.from} → {res.potential.to}</div>
+                  <div className="font-num text-2xl font-bold">{res.potential.from} → {res.potential.to}</div>
                   <p className="text-sm text-ink-2">Si llevas {res.potential.area} a verde.</p>
                 </div>
               </BentoCard>
@@ -188,14 +189,14 @@ function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onU
         <div className="absolute inset-0 flex items-start justify-center bg-gradient-to-b from-background/40 via-background/70 to-background/95 px-4 pt-16">
           <div className="w-full max-w-lg rounded-3xl border bg-card p-6 shadow-2xl sm:p-8">
             <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary"><Lock className="size-3.5" /> Tablero completo</div>
-            <h2 className="text-2xl font-extrabold tracking-tight">Tu plata, en un solo tablero</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight">Sabe qué hacer con tu plata</h2>
             <ul className="mt-4 grid gap-2 text-sm text-ink-2">
-              {["Cuánto te queda al mes y tu tasa de ahorro real", "A dónde se va tu plata, categoría por categoría", "Tu plan de salida de deudas, mes a mes", "Tu fondo de emergencia y cuándo lo completas", "Recomendaciones con tus propios números", "Plan de 30 días e informe en PDF"].map((t) => (
+              {["Cuánto te sobra de verdad cada mes", "Dónde poner lo que te sobra para que crezca", "A dónde se va tu plata, categoría por categoría", "Qué deuda pagar primero y cuánto te ahorras", "Tu fondo de emergencia y cuándo lo completas", "Plan de 30 días e informe en PDF"].map((t) => (
                 <li key={t} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{t}</li>
               ))}
             </ul>
             <div className="mt-5 flex flex-wrap items-center gap-4">
-              <div className="font-mono text-4xl font-medium">{config.currency} {config.pricePersonal}</div>
+              <div className="font-num text-4xl font-bold">{config.currency} {config.pricePersonal}</div>
               <div className="text-xs text-muted-foreground">pago único{config.priceRegular ? <><br />sube a {config.currency} {config.priceRegular} al terminar el lanzamiento</> : null}</div>
             </div>
             {buy ? <Button asChild size="lg" className="mt-4 w-full"><a href={buy}>Desbloquear mi tablero <ArrowRight /></a></Button>
@@ -203,12 +204,16 @@ function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onU
             <form className="mt-5 border-t pt-4" onSubmit={(e) => { e.preventDefault(); if (key.trim()) onUnlock(key) }}>
               <label htmlFor="clave" className="flex items-center gap-1.5 text-sm font-semibold"><KeyRound className="size-4" />¿Ya compraste? Escribe tu clave</label>
               <div className="mt-2 flex gap-2">
-                <input id="clave" value={key} onChange={(e) => setKey(e.target.value)} placeholder="XXXXXXXX-XXXX-XXXX-XXXX" className="min-w-0 flex-1 rounded-xl border bg-card px-3 py-2.5 font-mono text-sm outline-none focus:border-primary" />
+                <input id="clave" value={key} onChange={(e) => setKey(e.target.value)} placeholder="XXXXXXXX-XXXX-XXXX-XXXX" className="min-w-0 flex-1 rounded-xl border bg-card px-3 py-2.5 font-num text-sm outline-none focus:border-primary" />
                 <Button type="submit" variant="outline">Entrar</Button>
               </div>
               {unlockMsg && <p role="status" className={cn("mt-2 text-sm", unlockMsg === "Verificando…" ? "text-muted-foreground" : "text-rojo")}>{unlockMsg}</p>}
               <p className="mt-2 text-xs text-muted-foreground">La clave llega en tu correo de compra. También puedes entrar con el enlace del correo.</p>
             </form>
+            <details className="mt-4 border-t pt-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">¿Cómo funciona después de pagar?</summary>
+              <AccessSteps compact className="mt-3" />
+            </details>
           </div>
         </div>
       </div>

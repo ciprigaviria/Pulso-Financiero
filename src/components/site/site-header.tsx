@@ -17,6 +17,7 @@ export function SiteHeader({ minimal = false }: { minimal?: boolean }) {
           <nav className="flex items-center gap-6 text-sm font-semibold text-ink-2">
             <Link href="/#tablero" className="hidden hover:text-foreground md:inline">El tablero</Link>
             <Link href="/tablero" className="hidden hover:text-foreground md:inline">Mi tablero</Link>
+            <Link href="/#acceso" className="hidden hover:text-foreground md:inline">Cómo funciona</Link>
             <Link href="/#precios" className="hidden hover:text-foreground md:inline">Precios</Link>
             <Button asChild size="sm"><Link href="/prueba-personal">Hacer el test</Link></Button>
           </nav>

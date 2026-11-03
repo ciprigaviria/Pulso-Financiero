@@ -24,7 +24,7 @@ function Money({ value, onChange, label, className }: { value: number; onChange:
     <input
       inputMode="decimal" aria-label={label} placeholder="0" value={text}
       onChange={(e) => { const t = e.target.value.replace(/[^\d.,]/g, ""); setText(t); onChange(parseAmount(t)) }}
-      className={cn("w-full rounded-xl border bg-card px-3 py-2.5 text-right font-mono tabular-nums outline-none focus:border-primary focus:ring-4 focus:ring-accent", className)}
+      className={cn("w-full rounded-xl border bg-card px-3 py-2.5 text-right font-num tabular-nums outline-none focus:border-primary focus:ring-4 focus:ring-accent", className)}
     />
   )
 }

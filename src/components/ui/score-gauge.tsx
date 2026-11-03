@@ -37,7 +37,7 @@ export function ScoreGauge({
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <NumberFlow value={shown} className="font-extrabold tracking-tight" style={{ fontSize: size * 0.3, lineHeight: 1 }} />
+          <NumberFlow value={shown} className="font-num font-bold tracking-tight" style={{ fontSize: size * 0.3, lineHeight: 1 }} />
           <div className="text-xs font-semibold text-muted-foreground">{label}</div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-// Tablero personal: indicadores, proyección, radar de las 5 áreas, gastos por categoría,
+// Tablero personal: indicadores, qué hacer con lo que sobra, proyección, radar de las 5 áreas, gastos por categoría,
 // recomendaciones, plan de deudas, fondo de emergencia y plan de 30 días.
 import * as React from "react"
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Info, Lightbulb, ShieldCheck } from "lucide-react"
@@ -10,6 +10,7 @@ import type { FinanceData } from "@/lib/finance"
 import { moneyFormatter, withMoney, store } from "@/lib/store"
 import { BentoCard, CountUp, LineChart, Radar, Segmented, Tooltip, Treemap, type TipApi, type TreeGroup } from "./charts"
 import { cn } from "@/lib/utils"
+import { SurplusCard } from "./surplus-card"
 
 const GROUPS: TreeGroup[] = [
   { id: "esencial", name: "Esenciales", color: "#0e7c66", ink: "light" },
@@ -37,7 +38,7 @@ function Kpi({ label, value, tone, note, icon }: { label: string; value: React.R
         {label}
         <span className={cn("size-2.5 rounded-full", toneBg[tone])} aria-hidden="true" />
       </div>
-      <div className="mt-2.5 flex items-center gap-2 font-mono text-3xl font-medium leading-none tracking-tight tabular-nums">{value}{icon}</div>
+      <div className="mt-2.5 flex items-center gap-2 font-num text-3xl font-bold leading-none tracking-tight tabular-nums">{value}{icon}</div>
       <div className="mt-2 text-xs text-muted-foreground">{note}</div>
     </BentoCard>
   )
@@ -93,6 +94,9 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
         <Kpi label="Carga de deudas" tone={debtTone} value={<CountUp value={s.debtLoad * 100} format={(n) => Math.round(n) + "%"} />} note={`Del ingreso en cuotas · referencia: < ${pct(F.REF.debtLoad)}`} />
       </div>
 
+      {/* Qué hacer con lo que sobra */}
+      <SurplusCard data={data} s={s} fmt={fmt} tip={tip} />
+
       {/* Proyección */}
       <BentoCard className="col-span-12 lg:col-span-7">
         <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
@@ -144,7 +148,7 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
           {recs.slice(0, 5).map((r, i) => (
             <li key={r.id} className={cn("rounded-2xl border border-l-4 p-3.5", r.level === "alta" ? "border-l-rojo" : r.level === "media" ? "border-l-amarillo" : "border-l-verde")}>
               <div className="flex items-start gap-2.5">
-                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted font-mono text-xs font-bold">{i + 1}</span>
+                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted font-num text-xs font-bold">{i + 1}</span>
                 <div>
                   <div className="font-bold leading-snug">{r.title}</div>
                   <p className="mt-1 text-sm text-ink-2">{withMoney(r.detail, fmt.full)}</p>
@@ -168,20 +172,20 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
         {s.debts.length > 0 ? (
           <>
             <label className="mt-4 block text-sm font-semibold">
-              Pago extra al mes: <span className="font-mono">{fmt.full(extra)}</span>
+              Pago extra al mes: <span className="font-num">{fmt.full(extra)}</span>
               <input type="range" min={0} max={maxExtra} step={Math.max(1, Math.round(maxExtra / 100))} value={Math.min(extra, maxExtra)} onChange={(e) => setExtra(Number(e.target.value))} className="mt-2 w-full accent-[var(--primary)]" aria-label="Pago extra al mes" />
             </label>
             <div className="my-4 grid grid-cols-3 gap-3">
-              <div><div className="text-xs text-muted-foreground">Libre de deudas en</div><div className="font-mono text-2xl font-medium">{plan2.feasible ? `${plan2.months} meses` : "—"}</div></div>
-              <div><div className="text-xs text-muted-foreground">Intereses totales</div><div className="font-mono text-2xl font-medium">{fmt.compact(plan2.totalInterest)}</div></div>
-              <div><div className="text-xs text-muted-foreground">Ahorro vs. solo mínimos</div><div className="font-mono text-2xl font-medium text-verde">{base.feasible && plan2.feasible ? fmt.compact(Math.max(0, base.totalInterest - plan2.totalInterest)) : "—"}</div></div>
+              <div><div className="text-xs text-muted-foreground">Libre de deudas en</div><div className="font-num text-2xl font-bold">{plan2.feasible ? `${plan2.months} meses` : "—"}</div></div>
+              <div><div className="text-xs text-muted-foreground">Intereses totales</div><div className="font-num text-2xl font-bold">{fmt.compact(plan2.totalInterest)}</div></div>
+              <div><div className="text-xs text-muted-foreground">Ahorro vs. solo mínimos</div><div className="font-num text-2xl font-bold text-verde">{base.feasible && plan2.feasible ? fmt.compact(Math.max(0, base.totalInterest - plan2.totalInterest)) : "—"}</div></div>
             </div>
             {!plan2.feasible && <p className="mb-3 flex items-center gap-2 rounded-xl bg-rojo/10 p-3 text-sm text-rojo"><AlertTriangle className="size-4" />Con estos pagos los intereses no dejan bajar la deuda. Sube el pago extra.</p>}
             {plan2.feasible && <LineChart tip={tip} labels={debtLabels} format={fmt.compact} height={170}
               series={[{ name: "Con tu plan", values: plan2.series, color: "var(--primary)" }, { name: "Solo mínimos", values: baseSeries, color: "var(--muted-foreground)", dashed: true }]} />}
             <ul className="mt-3 grid gap-1.5 text-sm">
               {s.debts.slice().sort((a, b) => (plan2.payoffMonth[a.id] ?? 1e9) - (plan2.payoffMonth[b.id] ?? 1e9)).map((d, i) => (
-                <li key={d.id} className="flex justify-between border-t pt-1.5"><span className="text-ink-2">{i + 1}. {d.name} <span className="text-xs text-muted-foreground">({d.rate}% mensual)</span></span><span className="font-mono">{plan2.payoffMonth[d.id] ? `mes ${plan2.payoffMonth[d.id]}` : "—"}</span></li>
+                <li key={d.id} className="flex justify-between border-t pt-1.5"><span className="text-ink-2">{i + 1}. {d.name} <span className="text-xs text-muted-foreground">({d.rate}% mensual)</span></span><span className="font-num">{plan2.payoffMonth[d.id] ? `mes ${plan2.payoffMonth[d.id]}` : "—"}</span></li>
               ))}
             </ul>
           </>
@@ -195,10 +199,10 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
         <div className="mt-5 h-4 overflow-hidden rounded-full bg-muted">
           <div className={cn("h-full rounded-full transition-[width] duration-1000", toneBg[emTone])} style={{ width: `${Math.min(100, s.emergencyTarget > 0 ? (s.savings / s.emergencyTarget) * 100 : 0)}%` }} />
         </div>
-        <div className="mt-2 flex justify-between font-mono text-sm"><span>{fmt.full(s.savings)}</span><span className="text-muted-foreground">{fmt.full(s.emergencyTarget)}</span></div>
+        <div className="mt-2 flex justify-between font-num text-sm"><span>{fmt.full(s.savings)}</span><span className="text-muted-foreground">{fmt.full(s.emergencyTarget)}</span></div>
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <div><div className="text-xs text-muted-foreground">Te falta</div><div className="font-mono text-2xl font-medium">{fmt.compact(s.emergencyGap)}</div></div>
-          <div><div className="text-xs text-muted-foreground">Lo completas en</div><div className="font-mono text-2xl font-medium">{s.emergencyGap === 0 ? "¡Listo!" : s.margin > 0 ? `${Math.ceil(s.emergencyGap / s.margin)} meses` : "—"}</div></div>
+          <div><div className="text-xs text-muted-foreground">Te falta</div><div className="font-num text-2xl font-bold">{fmt.compact(s.emergencyGap)}</div></div>
+          <div><div className="text-xs text-muted-foreground">Lo completas en</div><div className="font-num text-2xl font-bold">{s.emergencyGap === 0 ? "¡Listo!" : s.margin > 0 ? `${Math.ceil(s.emergencyGap / s.margin)} meses` : "—"}</div></div>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">Calculado con todo tu margen mensual. Guarda este dinero en una cuenta separada.</p>
       </BentoCard>

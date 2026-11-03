@@ -15,12 +15,17 @@ function randomCase() {
 const dump = process.argv.indexOf('--dump');
 if (dump > -1) {
   const N = Number(process.argv[dump + 1] || 500);
-  const out = Array.from({ length: N }, () => {
-    const d = randomCase(), s = F.summarize(d);
+  const out = Array.from({ length: N }, (_, k) => {
+    const d = randomCase();
+    // La mitad de los casos con más ingreso y ahorro, para cubrir todas las etapas del reparto del sobrante.
+    if (k % 2) { d.income = d.income * 2 + 4000; d.savings += 4000 + rand(20000); }
+    if (k % 4 === 1) d.debts.push({ id: 'cara', name: 'Tarjeta', balance: 500 + rand(9000), rate: 1 + rand(30) / 10, min: 50 + rand(400) });
+    const s = F.summarize(d);
     const p0 = F.payoff(d.debts, 0, 'avalancha'), p1 = F.payoff(d.debts, d.extraDebtPayment, 'avalancha'), p2 = F.payoff(d.debts, d.extraDebtPayment, 'bola');
     return { data: d, margin: s.margin, savingsRate: s.savingsRate, essentials: s.essentials, emergencyMonths: s.emergencyMonths, debtLoad: s.debtLoad,
       p0: [p0.feasible, p0.months, p0.totalInterest], p1: [p1.feasible, p1.months, p1.totalInterest], p2: [p2.feasible, p2.months, p2.totalInterest],
-      recs: F.recommendations(d).map(r => r.id) };
+      recs: F.recommendations(d).map(r => r.id),
+      surplus: F.surplusPlan(d), growthRate: d.income % 17, growth: F.growth(d.savings, Math.max(0, s.margin), d.income % 17, 24) };
   });
   await new Promise(done => process.stdout.write(JSON.stringify(out), done));
   process.exit(0);
@@ -59,4 +64,39 @@ for (let i = 0; i < 3000; i++) {
 // 5. Datos vacíos no rompen nada.
 const e = F.emptyData('COP');
 assert.equal(F.summarize(e).margin, 0); assert.equal(F.recommendations(e)[0].id, 'sin_ingreso');
-console.log('✓ Motor del tablero: deudas, resumen y recomendaciones consistentes en 6.000 casos');
+
+// 6. Qué hacer con lo que sobra.
+{
+  // Tasa efectiva anual de 2% mensual = 1,02^12 − 1 = 26,82%.
+  assert.ok(Math.abs(F.effectiveAnnual(2) - 0.268241795) < 1e-8);
+  // Crecimiento: fórmula cerrada FV = S(1+i)^m + P((1+i)^m − 1)/i, con i = 1,12^(1/12) − 1.
+  const i = 1.12 ** (1 / 12) - 1, g = F.growth(1000, 100, 12, 24);
+  assert.ok(Math.abs(g.total - (1000 * (1 + i) ** 24 + 100 * ((1 + i) ** 24 - 1) / i)) < 1e-6);
+  assert.equal(g.contributed, 3400); assert.ok(Math.abs(g.interest - (g.total - 3400)) < 1e-9);
+  assert.equal(F.growth(0, 100, 0, 12).total, 1200);
+  // A 12% anual en 12 meses, 1.000 se vuelven 1.120 exactos.
+  assert.ok(Math.abs(F.growth(1000, 0, 12, 12).total - 1120) < 1e-9);
+
+  const base = { currency: 'USD', income: 3000, savings: 0, emergencyTargetMonths: 3, extraDebtPayment: 0,
+    expenses: F.DEFAULT_EXPENSES.map(e => ({ ...e, amount: e.id === 'vivienda' ? 1000 : 0 })), debts: [] as any[] };
+  const stage = (over: object) => F.surplusPlan({ ...base, ...over } as any).stage;
+  assert.equal(stage({ income: 900 }), 'sin_margen');
+  assert.equal(stage({ savings: 500 }), 'colchon_minimo');
+  assert.equal(stage({ savings: 1500, debts: [{ id: 'tc', name: 'Tarjeta', balance: 2000, rate: 2.5, min: 100 }] }), 'deudas_caras');
+  assert.equal(stage({ savings: 1500, debts: [{ id: 'h', name: 'Hipoteca', balance: 2000, rate: 0.9, min: 100 }] }), 'colchon');
+  assert.equal(stage({ savings: 5000 }), 'crecer');
+  const p = F.surplusPlan({ ...base, savings: 1500 } as any);
+  assert.deepEqual(p.split.map(x => [x.id, x.amount]), [['colchon', 1400], ['metas', 600]]);
+  assert.equal(p.milestone!.months, Math.ceil((3000 - 1500) / 1400));
+
+  for (let k = 0; k < 3000; k++) {
+    const d = randomCase(), sp = F.surplusPlan(d), sm = F.summarize(d);
+    const sum = sp.split.reduce((a, x) => a + x.amount, 0);
+    assert.equal(sum, sp.margin, 'el reparto suma el sobrante');
+    assert.ok(sp.split.every(x => x.amount >= 0));
+    if (sm.margin <= 0) assert.equal(sp.stage, 'sin_margen');
+    if (sp.stage === 'deudas_caras') assert.ok(sp.expensive.length > 0 && sp.expensive.every(x => x.ea > F.EXPENSIVE_DEBT_EA));
+    if (sp.milestone && sp.milestone.months !== null) assert.ok(Number.isInteger(sp.milestone.months) && sp.milestone.months >= 1);
+  }
+}
+console.log('✓ Motor del tablero: deudas, resumen, recomendaciones y plan del sobrante consistentes en 9.000 casos');

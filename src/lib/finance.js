@@ -1,7 +1,7 @@
 /*
  * Pulso Financiero — motor del tablero personal.
  * Funciones puras: reciben los números que la persona escribe (y que solo viven en su navegador)
- * y devuelven indicadores, plan de deudas, proyección y recomendaciones.
+ * y devuelven indicadores, plan de deudas, proyección, recomendaciones y el plan para lo que sobra.
  *
  * Validado contra una reimplementación independiente en Python: tests/validate_finance.py.
  */
@@ -189,4 +189,85 @@ export function recommendations(data, s = summarize(data)) {
       detail: `Te sobran ${'{m:' + Math.round(s.margin) + '}'} al mes. Asígnalos a una meta concreta (retiro, vivienda o estudio) para que no se diluyan.` });
   }
   return out.sort((a, b) => a.priority - b.priority);
+}
+
+/* ------------------------------------------------------------------
+ * Qué hacer con lo que te sobra
+ * ------------------------------------------------------------------ */
+
+// Una deuda con tasa efectiva anual mayor a esto se considera cara: pagarla "rinde" más que
+// cualquier ahorro sin riesgo.
+export const EXPENSIVE_DEBT_EA = 0.15;
+
+/** Tasa efectiva anual (0,268 = 26,8%) a partir de una tasa mensual en porcentaje (2 = 2%). */
+export function effectiveAnnual(monthlyPct) {
+  return Math.pow(1 + n(monthlyPct) / 100, 12) - 1;
+}
+
+/** Dónde poner el dinero según para cuándo lo necesitas. Son tipos de producto, no entidades. */
+export const BUCKETS = [
+  { id: 'colchon', name: 'Colchón', when: 'Para imprevistos', products: ['Cuenta de ahorro de alto rendimiento', 'Bolsillo o “cajita” de un banco digital', 'Cuenta remunerada'],
+    risk: 'Muy bajo', access: 'Inmediato', tip: 'Que esté separado de tu cuenta del día a día y lo puedas sacar el mismo día.' },
+  { id: 'deudas', name: 'Deudas caras', when: 'Ahora', products: ['Abono extra a capital de la deuda con la tasa más alta'],
+    risk: 'Ninguno', access: '—', tip: 'Pide que el abono vaya a capital y no a cuotas futuras.' },
+  { id: 'metas', name: 'Metas de 6 meses a 3 años', when: 'Viaje, estudio, cuota inicial', products: ['Depósito a plazo fijo (CDT, plazo fijo, depósito a plazo)', 'Fondo de inversión de renta fija o “money market”'],
+    risk: 'Bajo', access: 'Al vencimiento o en pocos días', tip: 'Elige el plazo según la fecha de tu meta: si lo sacas antes, puedes perder intereses.' },
+  { id: 'largo', name: 'Largo plazo (más de 3 años)', when: 'Retiro, independencia', products: ['Fondo de inversión diversificado o indexado', 'Pensión voluntaria (en algunos países con beneficio tributario)'],
+    risk: 'Medio: sube y baja en el camino', access: 'En días; ideal no tocarlo', tip: 'Aporta todos los meses sin importar si el mercado sube o baja.' },
+];
+
+/**
+ * Reparte lo que sobra cada mes según la etapa en que está la persona:
+ *  1. sin_margen      — no sobra nada: primero recortar.
+ *  2. colchon_minimo  — ahorros por debajo de 1 mes de gastos esenciales: 100% al colchón.
+ *  3. deudas_caras    — hay deudas con tasa anual > 15%: 70% a deudas, 30% a colchón (o metas si ya está completo).
+ *  4. colchon         — falta completar el colchón: 70% colchón, 30% metas.
+ *  5. crecer          — todo en orden: 50% metas, 50% largo plazo.
+ */
+export function surplusPlan(data, s = summarize(data)) {
+  const margin = Math.max(0, Math.round(s.margin));
+  const expensive = s.debts
+    .map((d) => ({ id: d.id, name: d.name, rate: d.rate, balance: d.balance, ea: effectiveAnnual(d.rate) }))
+    .filter((d) => d.ea > EXPENSIVE_DEBT_EA)
+    .sort((a, b) => b.rate - a.rate || a.balance - b.balance);
+
+  let stage, weights;
+  if (margin <= 0) { stage = 'sin_margen'; weights = {}; }
+  else if (s.essentials > 0 && s.savings < s.essentials) { stage = 'colchon_minimo'; weights = { colchon: 1 }; }
+  else if (expensive.length) { stage = 'deudas_caras'; weights = s.emergencyGap > 0 ? { deudas: 0.7, colchon: 0.3 } : { deudas: 0.7, metas: 0.3 }; }
+  else if (s.emergencyGap > 0) { stage = 'colchon'; weights = { colchon: 0.7, metas: 0.3 }; }
+  else { stage = 'crecer'; weights = { metas: 0.5, largo: 0.5 }; }
+
+  const ids = BUCKETS.map((b) => b.id).filter((id) => weights[id]);
+  let assigned = 0;
+  const split = ids.map((id, i) => {
+    const amount = i === ids.length - 1 ? margin - assigned : Math.round(margin * weights[id]);
+    assigned += amount;
+    return { id, pct: weights[id], amount };
+  });
+  const amountOf = (id) => (split.find((x) => x.id === id) || { amount: 0 }).amount;
+
+  let milestone = null;
+  if (stage === 'colchon_minimo') {
+    milestone = { id: 'un_mes', months: Math.ceil((s.essentials - s.savings) / margin) };
+  } else if (stage === 'deudas_caras') {
+    const p = payoff(s.debts, amountOf('deudas'), 'avalancha');
+    milestone = { id: 'sin_deudas_caras', months: p.feasible ? Math.max(...expensive.map((d) => p.payoffMonth[d.id] || 0)) : null };
+  } else if (stage === 'colchon') {
+    milestone = { id: 'colchon_completo', months: Math.ceil(s.emergencyGap / amountOf('colchon')) };
+  }
+  return { stage, margin, split, expensive, milestone };
+}
+
+/**
+ * Crecimiento de un ahorro con aporte mensual y tasa efectiva anual (en %), con capitalización mensual.
+ * Saldo del mes m = saldo anterior × (1 + i) + aporte, con i = (1 + EA)^(1/12) − 1.
+ */
+export function growth(start, monthly, annualPct, months = 12) {
+  const i = Math.pow(1 + n(annualPct) / 100, 1 / 12) - 1;
+  const series = [n(start)];
+  for (let m = 1; m <= months; m++) series.push(series[m - 1] * (1 + i) + n(monthly));
+  const total = series[months];
+  const contributed = n(start) + n(monthly) * months;
+  return { series, total, contributed, interest: total - contributed };
 }

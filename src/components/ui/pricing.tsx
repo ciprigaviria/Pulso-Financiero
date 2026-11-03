@@ -6,7 +6,7 @@
 import Link from "next/link"
 import NumberFlow from "@number-flow/react"
 import { motion, useInView } from "motion/react"
-import { BarChart3, Bell, CalendarCheck, CheckCheck, CreditCard, FileText, Gauge, LayoutDashboard, Lightbulb, Lock, Mail, ShieldCheck } from "lucide-react"
+import { BarChart3, Bell, CalendarCheck, CheckCheck, CreditCard, FileText, Gauge, LayoutDashboard, Lock, Mail, PiggyBank, ShieldCheck } from "lucide-react"
 import { useRef } from "react"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,7 +46,7 @@ const plans: Plan[] = [
   },
   {
     name: "Tablero completo",
-    description: "Para ver tus números reales y saber exactamente qué hacer.",
+    description: "Para saber exactamente qué hacer con tu plata cada mes.",
     price: config.pricePersonal,
     priceNote: "pago único",
     badge: config.priceRegular ? config.launchLabel : undefined,
@@ -54,11 +54,11 @@ const plans: Plan[] = [
     cta: "Haz el test y desbloquéalo",
     href: "/prueba-personal",
     features: [
-      { text: "Margen, ahorro y gastos por categoría", icon: <LayoutDashboard size={20} /> },
-      { text: "Plan de salida de deudas", icon: <CalendarCheck size={20} /> },
-      { text: "Recomendaciones con tus números", icon: <Lightbulb size={20} /> },
+      { text: "Cuánto te sobra de verdad cada mes", icon: <LayoutDashboard size={20} /> },
+      { text: "Dónde poner lo que te sobra para que crezca", icon: <PiggyBank size={20} /> },
+      { text: "Qué deuda pagar primero y cuánto te ahorras", icon: <CalendarCheck size={20} /> },
     ],
-    includes: ["Todo lo del test gratis, más:", "Fondo de emergencia y cuándo lo completas", "Proyección de tu ahorro a 12 meses", "Plan de 30 días con seguimiento", "Informe en PDF de tu resultado"],
+    includes: ["Todo lo del test gratis, más:", "Reparto sugerido de lo que te sobra", "Simulador de ahorro con la tasa de tu banco", "A dónde se va tu plata, categoría por categoría", "Recomendaciones con tus propios números", "Plan de 30 días e informe en PDF"],
   },
   {
     name: "Pulso Mensual",
@@ -84,7 +84,7 @@ function Price({ value }: { value: number }) {
       {value === 0 ? "Gratis" : (
         <>
           <span className="text-2xl font-bold text-muted-foreground">{config.currency}</span>
-          <NumberFlow value={inView ? value : 0} />
+          <NumberFlow value={inView ? value : 0} className="font-num font-bold" />
         </>
       )}
     </span>
@@ -101,7 +101,7 @@ export default function Pricing() {
           </VerticalCutReveal>
         </h2>
         <TimelineContent as="p" animationNum={0} className="text-muted-foreground md:text-lg">
-          El diagnóstico siempre es gratis. Si quieres ver tus números reales y saber exactamente qué hacer, desbloqueas el tablero una sola vez.
+          El diagnóstico siempre es gratis. Si quieres saber qué hacer con tu plata, desbloqueas tu tablero una sola vez y lo usas todos los meses.
         </TimelineContent>
       </article>
 
@@ -170,7 +170,7 @@ export default function Pricing() {
       >
         <span className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
         <span className="flex items-center gap-2"><CreditCard className="size-4 text-primary" />Tarjeta de crédito o débito y otros medios en el checkout</span>
-        <span className="flex items-center gap-2"><Mail className="size-4 text-primary" />Acceso inmediato por correo</span>
+        <span className="flex items-center gap-2"><Mail className="size-4 text-primary" />Acceso por correo en minutos, sin crear cuenta</span>
         <span className="flex items-center gap-2"><Lock className="size-4 text-primary" />Tus números se quedan en tu navegador</span>
       </motion.div>
     </div>

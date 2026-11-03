@@ -26,7 +26,7 @@ Persona ──► Sitio (GitHub Pages) ──► hace el test; el puntaje se cal
 | --- | --- |
 | `src/config.ts` | **Lo único que editas** para conectar pago y correo o cambiar el precio |
 | `src/lib/scoring.js` | Preguntas, puntos, hallazgos, banderas rojas, potencial y plan de 30 días |
-| `src/lib/finance.js` | Cálculos del tablero: margen, tasa de ahorro, fondo de emergencia, plan de deudas (avalancha y bola de nieve), proyección y recomendaciones |
+| `src/lib/finance.js` | Cálculos del tablero: margen, tasa de ahorro, fondo de emergencia, plan de deudas (avalancha y bola de nieve), proyección, recomendaciones y qué hacer con lo que sobra (reparto por etapa y simulador de ahorro) |
 | `src/lib/sample.js` | Datos ficticios del tablero de ejemplo y de los perfiles ilustrativos |
 | `src/app/` | Las páginas: inicio, test, tablero, privacidad, aviso legal y gracias |
 | `src/components/dashboard/` | El tablero: gráficos, formulario de cifras, vista bloqueada y desbloqueada |

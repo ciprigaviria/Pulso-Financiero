@@ -303,7 +303,7 @@ function ResultView({ data, onRestart }: { data: Saved; onRestart: () => void })
             <div key={a.id} className="rounded-xl border bg-card p-4">
               <div className="mb-2 flex items-center justify-between font-extrabold">
                 <span className="flex items-center gap-2"><span className={cn("size-2.5 rounded-full", colorBg[a.color])} />{a.name}</span>
-                <span className={colorText[a.color]}>{a.score}</span>
+                <span className={cn("font-num font-bold", colorText[a.color])}>{a.score}</span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-muted">
                 <motion.div className={cn("h-full rounded-full", colorBg[a.color])} initial={{ width: 0 }} whileInView={{ width: a.score + "%" }} viewport={{ once: true }} transition={{ duration: 1, delay: i * 0.08, ease: [0.2, 0.8, 0.2, 1] }} />
@@ -320,7 +320,7 @@ function ResultView({ data, onRestart }: { data: Saved; onRestart: () => void })
           <div className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"><ArrowUp className="size-6" /></div>
           <div>
             <div className="text-xs font-bold uppercase tracking-widest text-primary">Tu potencial</div>
-            <div className="flex items-baseline gap-2.5 text-3xl font-extrabold tracking-tight">
+            <div className="font-num flex items-baseline gap-2.5 text-3xl font-bold tracking-tight">
               <span>{res.potential.from}</span><span className="text-xl text-muted-foreground">→</span>
               <span className={colorText[res.potential.level.color]}>{res.potential.to}</span>
             </div>
@@ -379,15 +379,15 @@ function Offer({ data, email }: { data: Saved; email: string }) {
       <div id="oferta" className="bg-[#0f1a17] px-6 py-7 text-[#eef3f1] md:px-8">
         {config.priceRegular && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{config.launchLabel}</span>}
         <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Desbloquea tu tablero financiero</h2>
-        <p className="max-w-[60ch] text-[#b4c0bb]">Escribe tus números una vez y ve, en un solo lugar, cuánto te queda al mes, a dónde se va tu plata, cuándo sales de deudas y qué hacer primero.</p>
+        <p className="max-w-[60ch] text-[#b4c0bb]">Escribe tus números del mes y sabrás cuánto te sobra de verdad, qué recortar, qué deuda pagar primero y dónde poner lo que te sobra para que crezca.</p>
       </div>
       <div className="rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:px-8">
         <PreviewPages />
         <ul className="mb-6 mt-6 space-y-3">
           {[
-            ["Tablero personal:", "margen del mes, tasa de ahorro, gastos por categoría y tus 5 áreas en un radar."],
-            ["Plan de salida de deudas:", "cuántos meses te faltan y cuánto ahorras en intereses pagando un extra."],
-            ["Recomendaciones con tus números:", "qué recortar, cuánto y en qué orden, no consejos genéricos."],
+            ["Qué hacer con lo que te sobra:", "cuánto va a tu colchón, a deudas y a metas, en qué tipo de producto y cuánto crecería con la tasa de tu banco."],
+            ["A dónde se va tu plata:", "lo que te sobra al mes, tu tasa de ahorro y tus gastos por categoría."],
+            ["Plan de salida de deudas:", "qué deuda pagar primero, en cuántos meses sales y cuánto te ahorras en intereses."],
             ["Plan de 30 días e informe en PDF:", "8 acciones semana por semana y tu resultado explicado área por área."],
           ].map(([b, t]) => (
             <li key={b} className="flex gap-3 text-ink-2">
@@ -397,7 +397,7 @@ function Offer({ data, email }: { data: Saved; email: string }) {
           ))}
         </ul>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl bg-muted p-5">
-          <div className="text-5xl font-extrabold leading-none tracking-tight">
+          <div className="font-num text-5xl font-bold leading-none tracking-tight">
             {config.currency} {config.pricePersonal}
             <small className="mt-1 block text-xs font-bold tracking-normal text-muted-foreground">pago único</small>
           </div>

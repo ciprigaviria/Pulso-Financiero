@@ -13,12 +13,12 @@ export function DashboardPreview() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div className="max-w-2xl">
             <p className="mb-2 text-sm font-semibold text-primary">El tablero</p>
-            <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Tus números, explicados en una sola pantalla</h2>
-            <p className="mt-3 text-ink-2">Pasa el mouse por los gráficos. Este es un perfil de ejemplo con datos ficticios; el tuyo se arma con tu test y tus números.</p>
+            <h2 className="text-3xl font-extrabold tracking-tight md:text-4xl">Tu plata, explicada en una sola pantalla</h2>
+            <p className="mt-3 text-ink-2">Cuánto te sobra, qué hacer con eso, a dónde se va tu plata y en qué orden pagar tus deudas. Prueba el simulador y pasa el mouse por los gráficos: es un perfil de ejemplo con datos ficticios; el tuyo se arma con tus números.</p>
           </div>
           <Button asChild variant="outline"><Link href="/tablero?ejemplo">Abrir el ejemplo completo <ArrowRight /></Link></Button>
         </div>
-        <div className="relative max-h-[1150px] overflow-hidden">
+        <div className="relative max-h-[1750px] overflow-hidden">
           <DashboardView data={SAMPLE.data} testCode={SAMPLE.testCode} readOnly />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-b from-transparent to-muted" />
         </div>

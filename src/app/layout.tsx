@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s | Pulso Financiero",
   },
   description:
-    "Descubre qué tan sanas están tus finanzas con un test gratis de 5 minutos. Recibe tu puntaje de 0 a 100, un diagnóstico de cada área y tu potencial de mejora.",
+    "Finanzas para no financieros: un test gratis de 5 minutos para saber cómo estás, y un tablero que te dice cuánto te sobra cada mes y qué hacer con eso.",
   icons: { icon: `${basePath}/favicon.svg` },
   openGraph: {
     title: "Test de salud financiera gratis | Pulso Financiero",
@@ -27,7 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=DM+Sans:opsz,wght@9..40,500;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
       </head>
       <body>{children}</body>
     </html>

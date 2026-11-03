@@ -23,3 +23,18 @@ export function summarize(data: FinanceData): Summary;
 export function payoff(debts: Debt[], extra?: number, method?: 'avalancha' | 'bola', maxMonths?: number): Payoff;
 export function projection(start: number, monthly: number, months?: number): number[];
 export function recommendations(data: FinanceData, s?: Summary): Recommendation[];
+export type BucketId = 'colchon' | 'deudas' | 'metas' | 'largo';
+export interface Bucket { id: BucketId; name: string; when: string; products: string[]; risk: string; access: string; tip: string }
+export interface SurplusPlan {
+  stage: 'sin_margen' | 'colchon_minimo' | 'deudas_caras' | 'colchon' | 'crecer';
+  margin: number;
+  split: { id: BucketId; pct: number; amount: number }[];
+  expensive: { id: string; name: string; rate: number; balance: number; ea: number }[];
+  milestone: { id: 'un_mes' | 'sin_deudas_caras' | 'colchon_completo'; months: number | null } | null;
+}
+export interface Growth { series: number[]; total: number; contributed: number; interest: number }
+export const EXPENSIVE_DEBT_EA: number;
+export const BUCKETS: Bucket[];
+export function effectiveAnnual(monthlyPct: number): number;
+export function surplusPlan(data: FinanceData, s?: Summary): SurplusPlan;
+export function growth(start: number, monthly: number, annualPct: number, months?: number): Growth;

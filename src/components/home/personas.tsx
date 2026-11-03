@@ -20,7 +20,7 @@ export function Personas() {
                 <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-bold text-white", bg[r.level.color])}>{r.level.name}</span>
               </div>
               <div className="mt-4 flex items-baseline gap-2">
-                <span className="font-mono text-5xl font-medium tracking-tight">{r.total}</span>
+                <span className="font-num text-5xl font-bold tracking-tight">{r.total}</span>
                 <span className="text-sm text-muted-foreground">/100</span>
               </div>
               <p className="mt-1 text-sm font-semibold">{p.who}</p>

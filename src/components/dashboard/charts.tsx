@@ -111,7 +111,7 @@ export function Tooltip({ api }: { api: TipRef }) {
                 {r.color && <i className="inline-block size-2 rounded-[2px]" style={{ background: r.color }} />}
                 {r.label}
               </span>
-              <b className="font-mono font-medium tabular-nums">{r.value}</b>
+              <b className="font-num font-bold tabular-nums">{r.value}</b>
             </div>
           ))}
         </>
@@ -201,7 +201,7 @@ export function LineChart({ series, labels, format, caption, tip, height = 200 }
           {ticks.map((v) => (
             <g key={v}>
               <line x1={0} x2={W} y1={Y(v)} y2={Y(v)} className={v === 0 ? "stroke-muted-foreground/40" : "stroke-border"} strokeWidth={1} />
-              <text x={W - 8} y={Y(v) - 5} textAnchor="end" fontSize={10} className="fill-muted-foreground font-mono">{format(v)}</text>
+              <text x={W - 8} y={Y(v) - 5} textAnchor="end" fontSize={10} className="fill-muted-foreground font-num">{format(v)}</text>
             </g>
           ))}
           {series.map((s, si) => {
@@ -281,8 +281,8 @@ export function Treemap({ items, groups, format, total, tip, height = 300 }: { i
             {showName && <div className="truncate text-[11px] font-bold uppercase tracking-wide">{r.name}</div>}
             {showVal && (
               <div className="flex items-end justify-between gap-1.5">
-                <span className="font-mono text-lg font-medium leading-none tracking-tight tabular-nums">{label}</span>
-                {share && <span className="rounded-md bg-black/75 px-[5px] py-[3px] font-mono text-[10px] text-white">{share}</span>}
+                <span className="font-num text-lg font-bold leading-none tracking-tight tabular-nums">{label}</span>
+                {share && <span className="rounded-md bg-black/75 px-[5px] py-[3px] font-num text-[10px] text-white">{share}</span>}
               </div>
             )}
           </div>

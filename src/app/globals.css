@@ -62,7 +62,8 @@
 @theme inline {
   --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-num: "DM Sans", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -105,6 +106,9 @@
     font-family: var(--font-sans);
   }
 }
+
+/* Cifras: DM Sans con números de ancho fijo para que no "bailen" al animarse */
+.font-num { font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
 
 /* Fondo rayado, como en el componente de referencia */
 .bg-hatch {

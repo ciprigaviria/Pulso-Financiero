@@ -16,16 +16,18 @@ export function Hero() {
   const test = S.score(S.decode(SAMPLE.testCode))
   const s = F.summarize(SAMPLE.data)
   const fmt = moneyFormatter(SAMPLE.data.currency)
+  const plan = F.surplusPlan(SAMPLE.data, s)
+  const COLORS: Record<string, string> = { colchon: "#0e7c66", deudas: "#d6453d", metas: "#f2b84b", largo: "#3d6fd6" }
   return (
     <section className="pb-16 pt-12 md:pt-16">
       <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 md:grid-cols-[1fr_1fr]">
         <div>
-          <p className="mb-4 text-sm font-semibold text-primary">Test gratis · 5 minutos · sin registro</p>
+          <p className="mb-4 inline-flex rounded-full bg-accent px-3 py-1 text-sm font-bold text-accent-foreground">Finanzas para no financieros</p>
           <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight md:text-[3.6rem]">
-            Mira tus finanzas como las ve un <span className="font-serif font-normal italic text-primary">analista</span>.
+            Descubre cuánto te sobra cada mes y <span className="font-serif font-normal italic text-primary">qué hacer</span> con eso.
           </h1>
           <p className="mt-5 max-w-[46ch] text-lg text-ink-2">
-            Haz el test y recibe tu puntaje de 0 a 100. Si quieres ir más allá, escribe tus números y arma tu tablero: cuánto te queda al mes, a dónde se va tu plata, cuándo sales de deudas y qué hacer primero.
+            Sin palabras raras ni hojas de cálculo. Haz el test gratis en 5 minutos y, si quieres, arma tu tablero: a dónde se va tu plata, qué deuda pagar primero y dónde poner lo que te sobra para que crezca.
           </p>
           <div className="mb-5 mt-8 flex flex-wrap gap-3">
             <Button asChild size="lg"><Link href="/prueba-personal">Hacer el test gratis <ArrowRight /></Link></Button>
@@ -33,7 +35,7 @@ export function Hero() {
           </div>
           <div className="flex flex-wrap gap-5 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus respuestas y números se quedan en tu navegador</span>
-            <span className="flex items-center gap-1.5"><Clock className="size-4 text-primary" />Resultado al instante</span>
+            <span className="flex items-center gap-1.5"><Clock className="size-4 text-primary" />Test gratis, sin registro</span>
           </div>
         </div>
 
@@ -41,20 +43,34 @@ export function Hero() {
           <div className="grid grid-cols-2 gap-3">
             <BentoCard className="p-4">
               <div className="text-xs font-semibold text-muted-foreground">Te queda al mes</div>
-              <div className="mt-1.5 font-mono text-2xl font-medium"><CountUp value={s.margin} format={fmt.compact} /></div>
+              <div className="mt-1.5 font-num text-2xl font-bold"><CountUp value={s.margin} format={fmt.compact} /></div>
               <div className="mt-1 text-xs text-muted-foreground">Tasa de ahorro {Math.round(s.savingsRate * 100)}%</div>
             </BentoCard>
             <BentoCard className="p-4">
               <div className="text-xs font-semibold text-muted-foreground">Libre de deudas en</div>
-              <div className="mt-1.5 font-mono text-2xl font-medium"><CountUp value={F.payoff(s.debts, SAMPLE.data.extraDebtPayment).months || 0} format={(n) => Math.round(n) + " meses"} /></div>
+              <div className="mt-1.5 font-num text-2xl font-bold"><CountUp value={F.payoff(s.debts, SAMPLE.data.extraDebtPayment).months || 0} format={(n) => Math.round(n) + " meses"} /></div>
               <div className="mt-1 text-xs text-muted-foreground">Pagando {fmt.compact(SAMPLE.data.extraDebtPayment)} extra</div>
+            </BentoCard>
+            <BentoCard className="col-span-2 p-4">
+              <div className="text-sm font-bold">Qué hacer con lo que te sobra</div>
+              <div className="mt-3 flex h-3 overflow-hidden rounded-full">
+                {plan.split.map((x) => <div key={x.id} style={{ width: `${x.pct * 100}%`, background: COLORS[x.id] }} />)}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                {plan.split.map((x) => (
+                  <span key={x.id} className="flex items-center gap-1.5 text-ink-2">
+                    <i className="size-2 rounded-[2px]" style={{ background: COLORS[x.id] }} />{F.BUCKETS.find((b) => b.id === x.id)!.name}
+                    <b className="font-num text-foreground">{fmt.compact(x.amount)}</b>
+                  </span>
+                ))}
+              </div>
             </BentoCard>
             <BentoCard className="col-span-2 p-4">
               <div className="flex items-baseline justify-between">
                 <div className="text-sm font-bold">Tus 5 áreas</div>
                 <div className="text-xs text-muted-foreground">{test.total}/100 · {test.level.name}</div>
               </div>
-              <Radar tip={tip} values={test.areas.map((a) => a.score)} axis={test.areas.map((a) => a.name)} size={260} />
+              <Radar tip={tip} values={test.areas.map((a) => a.score)} axis={test.areas.map((a) => a.name)} size={220} />
             </BentoCard>
           </div>
           <p className="mt-2 text-right text-xs text-muted-foreground">Ejemplo ilustrativo con datos ficticios</p>

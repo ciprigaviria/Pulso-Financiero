@@ -13,7 +13,7 @@ export const SAMPLE = {
   data: {
     currency: 'COP',
     income: 6200000,
-    savings: 3100000,
+    savings: 4600000,
     emergencyTargetMonths: 4,
     extraDebtPayment: 300000,
     expenses: amounts({ vivienda: 1650000, mercado: 950000, servicios: 310000, transporte: 380000, salud: 260000, educacion: 0, conectividad: 140000, comida: 520000, compras: 340000, ocio: 230000, otros: 180000 }),
