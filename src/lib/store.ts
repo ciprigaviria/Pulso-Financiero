@@ -2,7 +2,7 @@
 import { config } from "@/config"
 import type { FinanceData } from "@/lib/finance"
 
-const K = { test: "pulso_test_v1", data: "pulso_tablero_v1", license: "pulso_licencia_v1", checks: "pulso_plan_v1" }
+const K = { test: "pulso_test_v1", data: "pulso_tablero_v1", license: "pulso_licencia_v1", checks: "pulso_plan_v1", country: "pulso_pais_v1" }
 
 function read<T>(key: string): T | null {
   try { return JSON.parse(localStorage.getItem(key) || "null") as T } catch { return null }
@@ -21,6 +21,8 @@ export const store = {
   setLicense: (l: { key: string; at: string } | null) => write(K.license, l),
   getChecks: () => read<Record<string, boolean>>(K.checks) || {},
   setChecks: (c: Record<string, boolean>) => write(K.checks, c),
+  getCountry: () => read<string>(K.country),
+  setCountry: (id: string | null) => write(K.country, id),
   clearAll: () => Object.values(K).forEach((k) => write(k, null)),
 }
 
@@ -53,27 +55,4 @@ export async function sendForm(body: Record<string, unknown>) {
   await fetch(config.appsScriptUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
 }
 
-const CURRENCY_BY_COUNTRY: Record<string, string> = {
-  colombia: "COP", guatemala: "GTQ", mexico: "MXN", "méxico": "MXN", peru: "PEN", "perú": "PEN", chile: "CLP", argentina: "ARS",
-  honduras: "HNL", "costa rica": "CRC", "república dominicana": "DOP", "republica dominicana": "DOP", bolivia: "BOB", paraguay: "PYG",
-  uruguay: "UYU", "españa": "EUR", espana: "EUR", ecuador: "USD", "el salvador": "USD", panamá: "USD", panama: "USD", "estados unidos": "USD",
-  nicaragua: "NIO", venezuela: "USD", brasil: "BRL",
-}
-export const CURRENCIES = ["COP", "GTQ", "MXN", "PEN", "CLP", "ARS", "USD", "EUR", "HNL", "CRC", "DOP", "BOB", "PYG", "UYU", "NIO", "BRL"]
-export function currencyFor(pais?: string) {
-  return CURRENCY_BY_COUNTRY[(pais || "").trim().toLowerCase()] || "USD"
-}
-
-export function moneyFormatter(currency: string) {
-  const full = new Intl.NumberFormat("es", { style: "currency", currency, maximumFractionDigits: 0 })
-  const compact = new Intl.NumberFormat("es", { style: "currency", currency, notation: "compact", maximumFractionDigits: 1 })
-  return {
-    full: (n: number) => full.format(Math.round(n)),
-    compact: (n: number) => (Math.abs(n) >= 100000 ? compact.format(n) : full.format(Math.round(n))),
-  }
-}
-
-/** Reemplaza los {m:123} de las recomendaciones por montos con formato. */
-export function withMoney(text: string, fmt: (n: number) => string) {
-  return text.replace(/\{m:(-?\d+)\}/g, (_, v) => fmt(Number(v)))
-}
+export { CURRENCIES, currencyFor, moneyFormatter, withMoney } from "@/lib/money"

@@ -21,7 +21,7 @@ const PROFILE = [
 
 const AREAS = [
   { id: 'gastar', name: 'Gastar', short: 'Cómo manejas lo que entra y sale' },
-  { id: 'ahorrar', name: 'Ahorrar', short: 'Tu colchón para imprevistos' },
+  { id: 'ahorrar', name: 'Ahorrar', short: 'Tu fondo de emergencia' },
   { id: 'deber', name: 'Deber', short: 'Qué tan sanas son tus deudas' },
   { id: 'proteger', name: 'Proteger', short: 'Qué te cubre si algo sale mal' },
   { id: 'planear', name: 'Planear', short: 'Tu futuro y tus metas' }
@@ -55,8 +55,8 @@ const QUESTIONS = [
   { n: 4, area: 'ahorrar', text: 'Si hoy dejaras de recibir ingresos, ¿cuánto tiempo cubrirías tus gastos con dinero disponible, sin pedir prestado?',
     options: ['6 meses o más', '3 a 5 meses', '1 a 2 meses', '1 a 3 semanas', 'Menos de 1 semana'],
     points: [100, 75, 50, 25, 0],
-    insights: ['Tu colchón cubre 6 meses o más de gastos: estás protegido ante un golpe fuerte.',
-      'Tu colchón cubre de 3 a 5 meses de gastos: estás dentro del rango recomendado.',
+    insights: ['Tu fondo de emergencia cubre 6 meses o más de gastos: estás protegido ante un golpe fuerte.',
+      'Tu fondo de emergencia cubre de 3 a 5 meses de gastos: estás dentro del rango recomendado.',
       'Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para 1 o 2 meses. Lo recomendado son de 3 a 6.',
       'Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para pocas semanas. Lo recomendado son de 3 a 6 meses.',
       'Si hoy dejaras de recibir ingresos, no tendrías ni una semana de margen.'] },
@@ -130,8 +130,8 @@ const FLAGS = [
     action: 'Identifica 3 gastos prescindibles y elimínalos durante 30 días.' },
   { id: 'atrasos', q: 2, minIndex: 3, name: 'Atrasos frecuentes en tus pagos',
     action: 'Pon recordatorios o pagos automáticos para cada cuenta fija.' },
-  { id: 'sin_colchon', q: 4, minIndex: 4, name: 'No tienes colchón para imprevistos',
-    action: 'Junta tu primer colchón equivalente a 1 semana de gastos antes que cualquier otra meta.' },
+  { id: 'sin_colchon', q: 4, minIndex: 4, name: 'No tienes fondo de emergencia',
+    action: 'Construye un fondo de reserva inicial equivalente a 1 semana de gastos antes que cualquier otra meta.' },
   { id: 'deuda_inmanejable', q: 6, minIndex: 3, name: 'Tus deudas superan lo que puedes manejar',
     action: 'Habla con tus acreedores para reestructurar antes de caer en mora.' },
   { id: 'tarjeta_limite', q: 7, minIndex: 3, name: 'Tu tarjeta de crédito te está costando caro',
@@ -153,7 +153,7 @@ const FLAG_CAP = 59; // con alguna bandera roja, el nivel no pasa de "En riesgo"
 
 const AREA_MSG = {
   gastar: { verde: 'Gastas con control y pagas a tiempo.', amarillo: 'Tu gasto está justo; un registro mensual te daría margen.', rojo: 'Tus gastos están por encima de lo que tu ingreso aguanta.' },
-  ahorrar: { verde: 'Tienes un colchón sólido.', amarillo: 'Tu colchón existe, pero se agotaría rápido.', rojo: 'Cualquier imprevisto te obligaría a endeudarte.' },
+  ahorrar: { verde: 'Tienes un fondo de emergencia sólido.', amarillo: 'Tu fondo de emergencia existe, pero se agotaría rápido.', rojo: 'Cualquier imprevisto te obligaría a endeudarte.' },
   deber: { verde: 'Tus deudas están bajo control.', amarillo: 'Tus deudas son manejables, pero te restan margen.', rojo: 'Tus deudas te están ahogando el flujo.' },
   proteger: { verde: 'Estás bien cubierto ante un golpe fuerte.', amarillo: 'Tienes protección, pero con huecos.', rojo: 'Un problema de salud o un accidente te pegaría duro.' },
   planear: { verde: 'Tienes rumbo y estás ahorrando para él.', amarillo: 'Tienes ideas, pero falta convertirlas en plan.', rojo: 'Tu futuro financiero está sin plan.' }

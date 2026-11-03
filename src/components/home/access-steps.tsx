@@ -3,14 +3,14 @@ import { CreditCard, LayoutDashboard, Mail, PencilLine, RefreshCw, Smartphone } 
 import { cn } from "@/lib/utils"
 
 export const ACCESS_STEPS = [
-  { icon: CreditCard, title: "Pagas una sola vez", text: "Con tarjeta u otros medios en el checkout seguro de Lemon Squeezy. No creas cuenta ni contraseña." },
-  { icon: Mail, title: "Te llega un correo", text: "En un par de minutos recibes el botón “Abrir mi tablero”, tu clave de acceso y tu informe en PDF." },
-  { icon: PencilLine, title: "Escribes tus números del mes", text: "Lo que ganas, lo que gastas por categoría (vivienda, mercado, domicilios…) y tus deudas. Son totales del mes: unos 10 minutos con tu extracto o tu app del banco a la mano." },
-  { icon: LayoutDashboard, title: "Tu tablero se arma al instante", text: "Ves a dónde se va tu plata, qué recortar, qué deuda pagar primero y qué hacer con lo que te sobra." },
+  { icon: CreditCard, title: "Pago único", text: "Con tarjeta u otros medios en el checkout seguro de Lemon Squeezy. Sin cuentas ni contraseñas." },
+  { icon: Mail, title: "Acceso por correo", text: "En un par de minutos recibes el botón “Abrir mi tablero”, tu clave de acceso y tu informe en PDF." },
+  { icon: PencilLine, title: "Registras tus cifras del mes", text: "Eliges tu país y moneda, y anotas ingresos, gastos por categoría y deudas. Son totales mensuales: unos 10 minutos con tu extracto bancario a la mano." },
+  { icon: LayoutDashboard, title: "Tu tablero, al instante", text: "Distribución de gastos, recomendaciones priorizadas, plan de desendeudamiento y asignación de tu excedente." },
 ]
 
 export const ACCESS_NOTES = [
-  { icon: RefreshCw, text: "Cada mes entras con el mismo enlace, actualizas tus números y ves cómo vas." },
+  { icon: RefreshCw, text: "Cada mes entras con el mismo enlace, actualizas tus cifras y das seguimiento a tu evolución." },
   { icon: Smartphone, text: "¿Otro celular o computador? Entras con tu clave y cargas tu respaldo: un archivo que descargas desde el tablero con un clic." },
 ]
 

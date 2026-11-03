@@ -31,34 +31,34 @@ type Plan = {
 
 const plans: Plan[] = [
   {
-    name: "Test gratis",
-    description: "Para saber en 5 minutos dónde estás parado.",
+    name: "Diagnóstico",
+    description: "Para conocer en 5 minutos tu salud financiera.",
     price: 0,
     priceNote: "sin registrarte",
-    cta: "Hacer el test gratis",
+    cta: "Hacer mi diagnóstico gratis",
     href: "/prueba-personal",
     features: [
       { text: "Puntaje de 0 a 100 y tu nivel", icon: <Gauge size={20} /> },
-      { text: "Semáforo y radar de las 5 áreas", icon: <BarChart3 size={20} /> },
+      { text: "Semáforo y perfil de las 5 áreas", icon: <BarChart3 size={20} /> },
       { text: "Vista previa de tu tablero", icon: <LayoutDashboard size={20} /> },
     ],
     includes: ["Incluye:", "Hallazgos clave de tus respuestas", "Tu potencial de mejora", "Tus alertas rojas", "La primera acción de tu plan"],
   },
   {
     name: "Tablero completo",
-    description: "Para saber exactamente qué hacer con tu plata cada mes.",
+    description: "Tu plan financiero personal, actualizado mes a mes.",
     price: config.pricePersonal,
     priceNote: "pago único",
     badge: config.priceRegular ? config.launchLabel : undefined,
     popular: true,
-    cta: "Haz el test y desbloquéalo",
+    cta: "Empezar por el diagnóstico",
     href: "/prueba-personal",
     features: [
-      { text: "Cuánto te sobra de verdad cada mes", icon: <LayoutDashboard size={20} /> },
-      { text: "Dónde poner lo que te sobra para que crezca", icon: <PiggyBank size={20} /> },
-      { text: "Qué deuda pagar primero y cuánto te ahorras", icon: <CalendarCheck size={20} /> },
+      { text: "Tu excedente mensual real", icon: <LayoutDashboard size={20} /> },
+      { text: "Asignación del excedente por objetivo", icon: <PiggyBank size={20} /> },
+      { text: "Plan de desendeudamiento", icon: <CalendarCheck size={20} /> },
     ],
-    includes: ["Todo lo del test gratis, más:", "Reparto sugerido de lo que te sobra", "Simulador de ahorro con la tasa de tu banco", "A dónde se va tu plata, categoría por categoría", "Recomendaciones con tus propios números", "Plan de 30 días e informe en PDF"],
+    includes: ["Todo lo del diagnóstico, más:", "Instrumentos sugeridos según tu plazo", "Simulador de interés compuesto con la tasa de tu banco", "Distribución de gastos por categoría", "Recomendaciones priorizadas con tus cifras", "En la moneda de tu país", "Plan de 30 días e informe en PDF"],
   },
   {
     name: "Pulso Mensual",
@@ -68,11 +68,11 @@ const plans: Plan[] = [
     soon: true,
     cta: "Disponible pronto",
     features: [
-      { text: "Comparación mes a mes", icon: <BarChart3 size={20} /> },
+      { text: "Evolución mes a mes", icon: <BarChart3 size={20} /> },
       { text: "Recordatorios y alertas", icon: <Bell size={20} /> },
-      { text: "Test trimestral con tu evolución", icon: <FileText size={20} /> },
+      { text: "Diagnóstico trimestral comparativo", icon: <FileText size={20} /> },
     ],
-    includes: ["Se suma al tablero completo:", "Historial de tus números", "Avance de tus metas", "Nuevas recomendaciones cada mes"],
+    includes: ["Se suma al tablero completo:", "Historial de tus cifras", "Seguimiento de tus metas", "Nuevas recomendaciones cada mes"],
   },
 ]
 
@@ -97,11 +97,11 @@ export default function Pricing() {
       <article className="mb-8 max-w-2xl space-y-4 text-left">
         <h2 className="text-4xl font-extrabold tracking-tight md:text-5xl">
           <VerticalCutReveal splitBy="words" staggerDuration={0.12} reverse containerClassName="justify-start" transition={{ type: "spring", stiffness: 250, damping: 40 }}>
-            Empieza gratis. Actúa con un plan.
+            Empieza gratis. Decide con un plan.
           </VerticalCutReveal>
         </h2>
         <TimelineContent as="p" animationNum={0} className="text-muted-foreground md:text-lg">
-          El diagnóstico siempre es gratis. Si quieres saber qué hacer con tu plata, desbloqueas tu tablero una sola vez y lo usas todos los meses.
+          El diagnóstico siempre es gratis. Si quieres un plan para tu dinero, activas tu tablero con un pago único y lo usas todos los meses.
         </TimelineContent>
       </article>
 
@@ -132,7 +132,7 @@ export default function Pricing() {
                 ) : (
                   <Button size="lg" variant="outline" className="mb-3 w-full" disabled>{plan.cta}</Button>
                 )}
-                {plan.popular && <p className="mb-4 text-xs text-muted-foreground">Primero haces el test: el tablero se arma con tus respuestas.</p>}
+                {plan.popular && <p className="mb-4 text-xs text-muted-foreground">Primero haces el diagnóstico: el tablero se construye con tus respuestas.</p>}
 
                 <ul className="mb-5 mt-4 space-y-3">
                   {plan.features.map((f) => (
@@ -171,7 +171,7 @@ export default function Pricing() {
         <span className="flex items-center gap-2"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
         <span className="flex items-center gap-2"><CreditCard className="size-4 text-primary" />Tarjeta de crédito o débito y otros medios en el checkout</span>
         <span className="flex items-center gap-2"><Mail className="size-4 text-primary" />Acceso por correo en minutos, sin crear cuenta</span>
-        <span className="flex items-center gap-2"><Lock className="size-4 text-primary" />Tus números se quedan en tu navegador</span>
+        <span className="flex items-center gap-2"><Lock className="size-4 text-primary" />Tus cifras se quedan en tu navegador</span>
       </motion.div>
     </div>
   )

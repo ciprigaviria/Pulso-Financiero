@@ -1,6 +1,8 @@
 // Pruebas del motor del tablero. Uso: npx tsx tests/finance.test.mts [--dump N]
 import assert from 'node:assert/strict';
 import * as F from '../src/lib/finance.js';
+import * as M from '../src/lib/money.ts';
+import { sampleData, FX_PER_USD, nice } from '../src/lib/sample.js';
 
 let seed = 11;
 const rand = (k: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % k; };
@@ -100,3 +102,32 @@ assert.equal(F.summarize(e).margin, 0); assert.equal(F.recommendations(e)[0].id,
   }
 }
 console.log('✓ Motor del tablero: deudas, resumen, recomendaciones y plan del sobrante consistentes en 9.000 casos');
+
+// 7. Monedas y formatos por país.
+{
+  const cases: [string, number][] = [['1.650.000', 1650000], ['1,650,000', 1650000], ['1 650 000', 1650000], ['2,4', 2.4], ['2.4', 2.4],
+    ['1.650.000,50', 1650000.5], ['1,650,000.50', 1650000.5], ['0,5', 0.5], ['', 0], ['abc', 0], ['$ 540.000', 540000]];
+  for (const [t, v] of cases) assert.equal(M.parseAmount(t), v, t);
+  const names: [string, string | undefined][] = [['mexico', 'MX'], ['México', 'MX'], ['Rep. Dominicana', 'DO'], ['Bogotá, Colombia', 'CO'], ['EEUU', 'US'],
+    ['  Perú ', 'PE'], ['españa', 'ES'], ['El Salvador', 'SV'], ['Canadá', undefined], ['', undefined]];
+  for (const [t, id] of names) assert.equal(M.countryFromText(t)?.id, id, t);
+  assert.equal(M.currencyFor('Guatemala'), 'GTQ'); assert.equal(M.currencyFor('Marte'), 'USD');
+  for (const c of [...M.COUNTRIES, M.DEFAULT_COUNTRY]) {
+    const fmt = M.moneyFormatter(c.currency, c.locale);
+    for (const v of [0, 7, 540000, 6240000, -1250]) {
+      const out = fmt.full(v) + fmt.compact(v) + fmt.num(v / 7, 2);
+      assert.ok(!/NaN|undefined|Infinity/.test(out), c.id + ' ' + out);
+    }
+    // Lo que se muestra en un campo se vuelve a leer igual.
+    for (const v of [1650000, 2.4, 245, 12.75]) assert.equal(M.parseAmount(M.formatInput(v, c.locale)), v, c.id + ' ' + M.formatInput(v, c.locale));
+    assert.equal(M.withMoney('{m:378000} · {d:2.4}%', fmt), fmt.full(378000) + ' · ' + fmt.num(2.4, 2) + '%');
+    // El ejemplo en cada moneda conserva la misma historia: excedente positivo y deuda de alto costo.
+    const d = sampleData(c.currency, c.locale), sm = F.summarize(d), sp = F.surplusPlan(d, sm);
+    assert.equal(d.currency, FX_PER_USD[c.currency] ? c.currency : 'USD');
+    assert.ok(sm.margin > 0, c.id); assert.equal(sp.stage, 'deudas_caras', c.id); assert.ok(sp.milestone && sp.milestone.months! > 0);
+  }
+  assert.equal(nice(6243120), 6240000); assert.equal(nice(245), 245); assert.equal(nice(0), 0);
+  // Las recomendaciones ya no traen decimales con formato fijo: usan {d:...}.
+  for (let k = 0; k < 500; k++) F.recommendations(randomCase()).forEach(r => assert.ok(!/\d,\d/.test(r.title + r.detail.replace(/\{[md]:[^}]*\}/g, '')), r.title));
+}
+console.log('✓ Monedas: 21 países, formato local, lectura de cifras y ejemplo coherente en cada moneda');

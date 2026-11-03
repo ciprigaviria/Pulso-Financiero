@@ -65,7 +65,7 @@ const QUESTIONS = [
   {"n":1,"area":"gastar","points":[100,75,50,25,0],"insights":["Gastaste mucho menos de lo que ganas: tienes margen real para ahorrar e invertir.","Gastas un poco menos de lo que ganas. Ese margen es tu motor de ahorro: protégelo.","Gastas casi todo lo que ganas: cualquier imprevisto te obliga a endeudarte.","Gastas más de lo que ganas. La diferencia la estás pagando con deuda o con ahorros que se agotan.","Gastas mucho más de lo que ganas: cada mes tu situación se vuelve más difícil de revertir."]},
   {"n":2,"area":"gastar","points":[100,60,40,20,0],"insights":["Pagas todas tus cuentas a tiempo: cero intereses de mora.","Casi siempre pagas a tiempo, pero los pocos atrasos ya te cuestan intereses.","Parte de tus pagos se atrasa y esos recargos se suman mes a mes.","Muchos pagos se atrasan: pagas intereses de mora y arriesgas tu historial de crédito.","La mayoría de tus pagos se atrasa: tu historial de crédito está en riesgo."]},
   {"n":3,"area":"gastar","points":[100,70,40,0],"insights":["Llevas un presupuesto y lo revisas: sabes a dónde va tu dinero.","Tienes presupuesto, pero sin revisarlo pierde su poder.","Solo tienes una idea general de tus gastos: los gastos pequeños se te escapan.","No llevas registro de tus gastos: es difícil mejorar lo que no mides."]},
-  {"n":4,"area":"ahorrar","points":[100,75,50,25,0],"insights":["Tu colchón cubre 6 meses o más de gastos: estás protegido ante un golpe fuerte.","Tu colchón cubre de 3 a 5 meses de gastos: estás dentro del rango recomendado.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para 1 o 2 meses. Lo recomendado son de 3 a 6.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para pocas semanas. Lo recomendado son de 3 a 6 meses.","Si hoy dejaras de recibir ingresos, no tendrías ni una semana de margen."]},
+  {"n":4,"area":"ahorrar","points":[100,75,50,25,0],"insights":["Tu fondo de emergencia cubre 6 meses o más de gastos: estás protegido ante un golpe fuerte.","Tu fondo de emergencia cubre de 3 a 5 meses de gastos: estás dentro del rango recomendado.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para 1 o 2 meses. Lo recomendado son de 3 a 6.","Si hoy dejaras de recibir ingresos, tu dinero alcanzaría para pocas semanas. Lo recomendado son de 3 a 6 meses.","Si hoy dejaras de recibir ingresos, no tendrías ni una semana de margen."]},
   {"n":5,"area":"ahorrar","points":[100,75,50,20,0],"insights":["Ahorras 20% o más de tu ingreso: un ritmo excelente.","Ahorras entre 10% y 19% de tu ingreso: vas en un rango saludable.","Ahorras menos del 10% de tu ingreso: a ese ritmo tus metas tardarán años.","Ahorras solo de vez en cuando: sin un hábito fijo, el ahorro depende de que sobre.","No estás ahorrando cada mes: todo lo que ganas se va."]},
   {"n":6,"area":"deber","points":[100,85,40,0],"insights":["No tienes deudas: todo tu ingreso trabaja para ti.","Tus deudas son manejables.","Tus deudas ya superan un poco lo que puedes manejar: es el momento de ordenarlas antes de que crezcan.","Tus deudas superan con creces lo que puedes pagar: necesitas un plan de salida."]},
   {"n":7,"area":"deber","points":[100,100,50,20,0],"insights":["No dependes de la tarjeta de crédito.","Usas la tarjeta sin pagar intereses.","Pagas más del mínimo, pero mientras no pagues el total los intereses siguen corriendo.","Pagar solo el mínimo hace que lo que compras te cueste mucho más y tarde años en pagarse.","Atrasarte con la tarjeta suma intereses de mora y daña tu historial."]},
@@ -79,7 +79,7 @@ const QUESTIONS = [
 const FLAGS = [
   {"id":"gasta_mas","q":1,"minIndex":3,"name":"Gastas más de lo que ganas","action":"Identifica 3 gastos prescindibles y elimínalos durante 30 días."},
   {"id":"atrasos","q":2,"minIndex":3,"name":"Atrasos frecuentes en tus pagos","action":"Pon recordatorios o pagos automáticos para cada cuenta fija."},
-  {"id":"sin_colchon","q":4,"minIndex":4,"name":"No tienes colchón para imprevistos","action":"Junta tu primer colchón equivalente a 1 semana de gastos antes que cualquier otra meta."},
+  {"id":"sin_colchon","q":4,"minIndex":4,"name":"No tienes fondo de emergencia","action":"Construye un fondo de reserva inicial equivalente a 1 semana de gastos antes que cualquier otra meta."},
   {"id":"deuda_inmanejable","q":6,"minIndex":3,"name":"Tus deudas superan lo que puedes manejar","action":"Habla con tus acreedores para reestructurar antes de caer en mora."},
   {"id":"tarjeta_limite","q":7,"minIndex":3,"name":"Tu tarjeta de crédito te está costando caro","action":"Deja de usar la tarjeta y paga más del mínimo cada mes hasta saldarla."}
 ];
@@ -95,7 +95,7 @@ const FLAG_CAP = 59;
 
 const AREA_MSG = {
   gastar: { verde: 'Gastas con control y pagas a tiempo.', amarillo: 'Tu gasto está justo; un registro mensual te daría margen.', rojo: 'Tus gastos están por encima de lo que tu ingreso aguanta.' },
-  ahorrar: { verde: 'Tienes un colchón sólido.', amarillo: 'Tu colchón existe, pero se agotaría rápido.', rojo: 'Cualquier imprevisto te obligaría a endeudarte.' },
+  ahorrar: { verde: 'Tienes un fondo de emergencia sólido.', amarillo: 'Tu fondo de emergencia existe, pero se agotaría rápido.', rojo: 'Cualquier imprevisto te obligaría a endeudarte.' },
   deber: { verde: 'Tus deudas están bajo control.', amarillo: 'Tus deudas son manejables, pero te restan margen.', rojo: 'Tus deudas te están ahogando el flujo.' },
   proteger: { verde: 'Estás bien cubierto ante un golpe fuerte.', amarillo: 'Tienes protección, pero con huecos.', rojo: 'Un problema de salud o un accidente te pegaría duro.' },
   planear: { verde: 'Tienes rumbo y estás ahorrando para él.', amarillo: 'Tienes ideas, pero falta convertirlas en plan.', rojo: 'Tu futuro financiero está sin plan.' }
@@ -165,7 +165,7 @@ const AREA_DETAIL = {
     ]
   },
   ahorrar: {
-    why: 'Un colchón de 3 a 6 meses de gastos esenciales evita que un imprevisto se convierta en deuda.',
+    why: 'Un fondo de emergencia de 3 a 6 meses de gastos esenciales evita que un imprevisto se convierta en deuda.',
     actions: [
       'Mira en tu tablero cuánto te falta para tu fondo de emergencia.',
       'Abre una cuenta de ahorro separada, solo para emergencias.',

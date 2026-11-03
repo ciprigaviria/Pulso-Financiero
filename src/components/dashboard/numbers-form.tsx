@@ -4,22 +4,20 @@
 import * as React from "react"
 import { Lock, Plus, Trash2 } from "lucide-react"
 import type { FinanceData, ExpenseType } from "@/lib/finance"
-import { CURRENCIES } from "@/lib/store"
+import { COUNTRIES, DEFAULT_COUNTRY, countryById, formatInput, localeFor, parseAmount } from "@/lib/money"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-const TYPE_LABEL: Record<ExpenseType, string> = { esencial: "Esencial", importante: "Importante", prescindible: "Prescindible" }
+const TYPE_LABEL: Record<ExpenseType, string> = { esencial: "Esencial", importante: "Importante", prescindible: "Discrecional" }
 
-/** "1.650.000" → 1650000 · "2,4" → 2.4 · "2.4" → 2.4 */
-export function parseAmount(t: string) {
-  if (t.includes(",")) return Number(t.replace(/\./g, "").replace(",", ".")) || 0
-  if (/^\d+\.\d{1,2}$/.test(t)) return Number(t) || 0
-  return Number(t.replace(/\./g, "")) || 0
-}
+export { parseAmount }
+
+const LocaleCtx = React.createContext("es")
 
 function Money({ value, onChange, label, className }: { value: number; onChange: (n: number) => void; label: string; className?: string }) {
-  const [text, setText] = React.useState(value ? String(value).replace(".", ",") : "")
-  React.useEffect(() => { setText((t) => (parseAmount(t) === value ? t : value ? String(value).replace(".", ",") : "")) }, [value])
+  const locale = React.useContext(LocaleCtx)
+  const [text, setText] = React.useState(formatInput(value, locale))
+  React.useEffect(() => { setText((t) => (parseAmount(t) === value ? t : formatInput(value, locale))) }, [value, locale])
   return (
     <input
       inputMode="decimal" aria-label={label} placeholder="0" value={text}
@@ -34,15 +32,22 @@ export function NumbersForm({ initial, onSave, onCancel }: { initial: FinanceDat
   const set = <K extends keyof FinanceData>(k: K, v: FinanceData[K]) => setD((x) => ({ ...x, [k]: v }))
   const setExp = (i: number, patch: Partial<FinanceData["expenses"][number]>) => setD((x) => ({ ...x, expenses: x.expenses.map((e, j) => (j === i ? { ...e, ...patch } : e)) }))
   const setDebt = (i: number, patch: Partial<FinanceData["debts"][number]>) => setD((x) => ({ ...x, debts: x.debts.map((e, j) => (j === i ? { ...e, ...patch } : e)) }))
+  const countryId = d.country || COUNTRIES.find((c) => c.currency === d.currency && c.locale === localeFor(d.currency, d.locale))?.id || COUNTRIES.find((c) => c.currency === d.currency)?.id || DEFAULT_COUNTRY.id
+  const setCountry = (id: string) => {
+    const c = countryById(id) || DEFAULT_COUNTRY
+    setD((x) => ({ ...x, country: c.id, currency: c.currency, locale: c.locale }))
+  }
+  const locale = localeFor(d.currency, d.locale)
 
   return (
-    <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); onSave(d) }}>
-      <p className="flex items-start gap-2 rounded-2xl bg-accent p-4 text-sm"><Lock className="mt-0.5 size-4 shrink-0 text-primary" />Tus números se guardan solo en este navegador. No los enviamos a ningún servidor. Usa montos mensuales aproximados; no tienen que ser exactos.</p>
+    <LocaleCtx.Provider value={locale}>
+    <form className="grid gap-6" onSubmit={(e) => { e.preventDefault(); onSave({ ...d, country: countryId, locale }) }}>
+      <p className="flex items-start gap-2 rounded-2xl bg-accent p-4 text-sm"><Lock className="mt-0.5 size-4 shrink-0 text-primary" />Tus cifras se guardan solo en este navegador; no las enviamos a ningún servidor. Usa montos mensuales aproximados: no necesitan ser exactos.</p>
 
       <section className="grid gap-4 sm:grid-cols-3">
-        <label className="grid gap-1.5 text-sm font-semibold">Moneda
-          <select value={d.currency} onChange={(e) => set("currency", e.target.value)} className="rounded-xl border bg-card px-3 py-2.5">
-            {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+        <label className="grid gap-1.5 text-sm font-semibold">País y moneda
+          <select value={countryId} onChange={(e) => setCountry(e.target.value)} className="rounded-xl border bg-card px-3 py-2.5">
+            {[...COUNTRIES, DEFAULT_COUNTRY].map((c) => <option key={c.id} value={c.id}>{c.name} · {c.currency}</option>)}
           </select>
         </label>
         <label className="grid gap-1.5 text-sm font-semibold">Ingreso mensual neto
@@ -55,7 +60,7 @@ export function NumbersForm({ initial, onSave, onCancel }: { initial: FinanceDat
 
       <section>
         <h3 className="mb-1 font-extrabold">Gastos del mes</h3>
-        <p className="mb-3 text-sm text-muted-foreground">Sin cuotas de deudas: esas van abajo. Puedes cambiar si cada gasto es esencial, importante o prescindible.</p>
+        <p className="mb-3 text-sm text-muted-foreground">Sin cuotas de deudas: esas van abajo. Clasifica cada gasto como esencial, importante o discrecional.</p>
         <div className="grid gap-2">
           {d.expenses.map((e, i) => (
             <div key={e.id} className="grid grid-cols-[1fr_130px] items-center gap-2 sm:grid-cols-[1fr_150px_160px]">
@@ -71,14 +76,14 @@ export function NumbersForm({ initial, onSave, onCancel }: { initial: FinanceDat
 
       <section>
         <h3 className="mb-1 font-extrabold">Deudas</h3>
-        <p className="mb-3 text-sm text-muted-foreground">Saldo pendiente, tasa de interés <b>mensual</b> (aparece en tu extracto) y cuota mínima.</p>
+        <p className="mb-3 text-sm text-muted-foreground">Saldo de capital, tasa de interés <b>mensual</b> (figura en tu extracto) y pago mínimo.</p>
         <div className="grid gap-2">
           {d.debts.map((x, i) => (
             <div key={x.id} className="grid grid-cols-2 gap-2 rounded-2xl border p-3 sm:grid-cols-[1.4fr_1fr_.7fr_1fr_auto] sm:items-end">
               <label className="col-span-2 grid gap-1 text-xs font-semibold sm:col-span-1">Nombre<input value={x.name} onChange={(e) => setDebt(i, { name: e.target.value })} className="rounded-xl border bg-card px-3 py-2.5 text-sm" /></label>
               <label className="grid gap-1 text-xs font-semibold">Saldo<Money label="Saldo" value={x.balance} onChange={(v) => setDebt(i, { balance: v })} /></label>
               <label className="grid gap-1 text-xs font-semibold">Tasa % mes<Money label="Tasa mensual" value={x.rate} onChange={(v) => setDebt(i, { rate: v })} /></label>
-              <label className="grid gap-1 text-xs font-semibold">Cuota mínima<Money label="Cuota mínima" value={x.min} onChange={(v) => setDebt(i, { min: v })} /></label>
+              <label className="grid gap-1 text-xs font-semibold">Pago mínimo<Money label="Pago mínimo" value={x.min} onChange={(v) => setDebt(i, { min: v })} /></label>
               <button type="button" aria-label={`Quitar ${x.name}`} onClick={() => setD((s) => ({ ...s, debts: s.debts.filter((_, j) => j !== i) }))} className="grid size-10 place-items-center self-end justify-self-end rounded-xl text-muted-foreground hover:bg-muted hover:text-rojo"><Trash2 className="size-4" /></button>
             </div>
           ))}
@@ -94,8 +99,8 @@ export function NumbersForm({ initial, onSave, onCancel }: { initial: FinanceDat
             {[3, 4, 5, 6].map((m) => <option key={m} value={m}>{m} meses de gastos esenciales</option>)}
           </select>
         </label>
-        <label className="grid gap-1.5 text-sm font-semibold">Pago extra a deudas al mes (opcional)
-          <Money label="Pago extra a deudas" value={d.extraDebtPayment} onChange={(v) => set("extraDebtPayment", v)} />
+        <label className="grid gap-1.5 text-sm font-semibold">Abono extra a capital al mes (opcional)
+          <Money label="Abono extra a capital" value={d.extraDebtPayment} onChange={(v) => set("extraDebtPayment", v)} />
         </label>
       </section>
 
@@ -104,5 +109,6 @@ export function NumbersForm({ initial, onSave, onCancel }: { initial: FinanceDat
         {onCancel && <Button type="button" size="lg" variant="outline" onClick={onCancel}>Cancelar</Button>}
       </div>
     </form>
+    </LocaleCtx.Provider>
   )
 }

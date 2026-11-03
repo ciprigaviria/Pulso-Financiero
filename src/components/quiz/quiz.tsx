@@ -15,6 +15,8 @@ import { ScoreGauge } from "@/components/ui/score-gauge"
 import { TimelineContent } from "@/components/ui/timeline-content"
 import { cn } from "@/lib/utils"
 import { store } from "@/lib/store"
+import { countryFromText } from "@/lib/money"
+import { setVisitorCountry } from "@/lib/use-country"
 
 const STORE_KEY = "pulso_personal_v2"
 
@@ -78,6 +80,8 @@ export function Quiz() {
       }
       save(data)
       store.setTest({ ...data, at: new Date().toISOString() })
+      const c = countryFromText(data.pais)
+      if (c) setVisitorCountry(c.id)
       setResult(data)
     } else {
       setStep(Math.max(-1, n))
@@ -379,15 +383,15 @@ function Offer({ data, email }: { data: Saved; email: string }) {
       <div id="oferta" className="bg-[#0f1a17] px-6 py-7 text-[#eef3f1] md:px-8">
         {config.priceRegular && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{config.launchLabel}</span>}
         <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Desbloquea tu tablero financiero</h2>
-        <p className="max-w-[60ch] text-[#b4c0bb]">Escribe tus números del mes y sabrás cuánto te sobra de verdad, qué recortar, qué deuda pagar primero y dónde poner lo que te sobra para que crezca.</p>
+        <p className="max-w-[60ch] text-[#b4c0bb]">Registra tus cifras del mes y obtén tu excedente real, la distribución de tus gastos, tu plan de desendeudamiento y en qué instrumentos ubicar tu excedente según tu objetivo.</p>
       </div>
       <div className="rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:px-8">
         <PreviewPages />
         <ul className="mb-6 mt-6 space-y-3">
           {[
-            ["Qué hacer con lo que te sobra:", "cuánto va a tu colchón, a deudas y a metas, en qué tipo de producto y cuánto crecería con la tasa de tu banco."],
-            ["A dónde se va tu plata:", "lo que te sobra al mes, tu tasa de ahorro y tus gastos por categoría."],
-            ["Plan de salida de deudas:", "qué deuda pagar primero, en cuántos meses sales y cuánto te ahorras en intereses."],
+            ["Plan para tu excedente:", "asignación a fondo de emergencia, deuda y metas, con los instrumentos adecuados y un simulador de interés compuesto."],
+            ["Distribución de tus gastos:", "excedente mensual, tasa de ahorro y gastos por categoría: esenciales, importantes y discrecionales."],
+            ["Plan de desendeudamiento:", "qué deuda priorizar, en cuántos meses quedas libre y cuánto te ahorras en intereses."],
             ["Plan de 30 días e informe en PDF:", "8 acciones semana por semana y tu resultado explicado área por área."],
           ].map(([b, t]) => (
             <li key={b} className="flex gap-3 text-ink-2">
@@ -410,7 +414,7 @@ function Offer({ data, email }: { data: Saved; email: string }) {
           <span className="flex items-center gap-1.5"><ShieldCheck className="size-4 text-primary" />Pago seguro con Lemon Squeezy</span>
           <span className="flex items-center gap-1.5"><CreditCard className="size-4 text-primary" />Tarjeta y otros medios en el checkout</span>
           <span className="flex items-center gap-1.5"><Mail className="size-4 text-primary" />Llega a tu correo en minutos</span>
-          <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus números se quedan en tu navegador</span>
+          <span className="flex items-center gap-1.5"><Lock className="size-4 text-primary" />Tus cifras se quedan en tu navegador</span>
         </div>
       </div>
     </TimelineContent>
@@ -421,7 +425,7 @@ function PreviewPages() {
   // Miniatura del tablero (decorativa)
   return (
     <div className="grid grid-cols-6 gap-2 rounded-2xl border bg-muted/40 p-3" aria-hidden="true">
-      {[["Te queda al mes", "bg-verde"], ["Ahorro", "bg-amarillo"], ["Colchón", "bg-amarillo"]].map(([t, c]) => (
+      {[["Excedente mensual", "bg-verde"], ["Tasa de ahorro", "bg-amarillo"], ["Cobertura", "bg-amarillo"]].map(([t, c]) => (
         <div key={t} className="col-span-2 rounded-xl border bg-card p-2.5">
           <div className="flex items-center justify-between text-[10px] font-semibold text-muted-foreground">{t}<span className={cn("size-1.5 rounded-full", c)} /></div>
           <div className="mt-1.5 h-3 w-3/4 rounded bg-foreground/80" />

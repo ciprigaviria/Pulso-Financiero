@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s | Pulso Financiero",
   },
   description:
-    "Finanzas para no financieros: un test gratis de 5 minutos para saber cómo estás, y un tablero que te dice cuánto te sobra cada mes y qué hacer con eso.",
+    "Finanzas para no financieros: un test gratis de 5 minutos para saber cómo estás, y un tablero que te muestra tu excedente mensual y cómo ponerlo a trabajar, en la moneda de tu país.",
   icons: { icon: `${basePath}/favicon.svg` },
   openGraph: {
     title: "Test de salud financiera gratis | Pulso Financiero",

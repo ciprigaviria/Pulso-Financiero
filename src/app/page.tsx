@@ -11,19 +11,20 @@ import { Button } from "@/components/ui/button"
 import Pricing from "@/components/ui/pricing"
 
 const STEPS = [
-  { n: "01", title: "Haces el test gratis", text: "16 preguntas sencillas, sin montos ni datos personales. En 5 minutos sabes cómo estás: un puntaje de 0 a 100 y un semáforo de 5 áreas." },
-  { n: "02", title: "Ves qué te frena", text: "Tus alertas, lo que revelan tus respuestas y la primera acción de tu plan. Gratis, sin registrarte." },
-  { n: "03", title: "Sabes qué hacer con tu plata", text: "Si desbloqueas tu tablero, escribes tus números del mes y te dice qué recortar, qué deuda pagar primero y dónde poner lo que te sobra." },
+  { n: "01", title: "Diagnóstico gratuito", text: "16 preguntas sencillas, sin montos ni datos personales. En 5 minutos obtienes tu puntaje de salud financiera de 0 a 100 y un semáforo de 5 áreas." },
+  { n: "02", title: "Alertas y prioridades", text: "Identificas qué frena tus finanzas, qué revelan tus respuestas y cuál es tu primera acción. Gratis y sin registro." },
+  { n: "03", title: "Tu plan financiero", text: "Con tu tablero registras tus cifras del mes y obtienes qué ajustar, qué deuda priorizar y en qué instrumentos ubicar tu excedente." },
 ]
 
 const FAQ = [
-  ["¿El test es gratis?", "Sí. El puntaje, el semáforo de las 5 áreas, los hallazgos, tu potencial y la vista previa del tablero son gratis. Solo pagas si quieres el tablero completo."],
-  ["¿Dónde quedan mis números?", "En tu navegador. El tablero se calcula en tu dispositivo y no enviamos tus respuestas ni tus montos a ningún servidor. Para usarlo en otro dispositivo, descargas un respaldo y lo cargas allá."],
-  ["¿Cómo entro al tablero después de pagar?", "Te llega un correo con el botón “Abrir mi tablero” y tu clave de acceso. Haces clic, escribes tus números del mes y listo. No creas cuenta ni contraseña."],
-  ["¿Tengo que conectar mi banco?", "No. Escribes tú los totales del mes por categoría (vivienda, mercado, domicilios, deudas…), mirando tu extracto o la app de tu banco. Así nadie más ve tus movimientos."],
-  ["¿Cómo veo mis gastos mes a mes?", "Cada mes entras con el mismo enlace, actualizas tus números y el tablero se recalcula: ves a dónde se va tu plata, cuánto te sobra y qué hacer con eso."],
-  ["¿Y si cambio de celular o computador?", "Entras con tu clave y cargas tu respaldo, un archivo que descargas desde el tablero con un clic. Como tus números no se guardan en internet, el respaldo es la forma de llevarlos."],
-  ["¿Me dicen en qué banco invertir?", "No recomendamos entidades. Te decimos qué tipo de producto usar según el plazo (cuenta de ahorro, depósito a plazo, fondo de inversión, pensión voluntaria) y te dejamos simular con la tasa que te ofrezca tu banco."],
+  ["¿El diagnóstico es gratis?", "Sí. El puntaje, el semáforo de las 5 áreas, los hallazgos, tu potencial de mejora y la vista previa del tablero son gratis. Solo pagas si quieres el tablero completo."],
+  ["¿Funciona en mi país?", "Sí. El tablero trabaja en la moneda y con el formato de cifras de tu país: pesos, soles, quetzales, lempiras, colones, euros, dólares y más. Lo eliges al registrar tus cifras."],
+  ["¿Dónde quedan mis cifras?", "En tu navegador. El tablero se calcula en tu dispositivo y no enviamos tus respuestas ni tus montos a ningún servidor. Para usarlo en otro dispositivo, descargas un respaldo y lo cargas allá."],
+  ["¿Cómo accedo al tablero después de pagar?", "Recibes un correo con el botón “Abrir mi tablero” y tu clave de acceso. Haces clic, registras tus cifras del mes y listo. Sin cuentas ni contraseñas."],
+  ["¿Tengo que conectar mi banco?", "No. Registras tú los totales del mes por categoría (vivienda, mercado, restaurantes, deudas…) con tu extracto o la app de tu banco a la mano. Así nadie más ve tus movimientos."],
+  ["¿Cómo hago seguimiento mes a mes?", "Cada mes entras con el mismo enlace, actualizas tus cifras y el tablero se recalcula: distribución de gastos, excedente y la asignación sugerida."],
+  ["¿Y si cambio de celular o computador?", "Entras con tu clave y cargas tu respaldo, un archivo que descargas desde el tablero con un clic. Como tus cifras no se guardan en internet, el respaldo es la forma de trasladarlas."],
+  ["¿Me recomiendan en qué entidad invertir?", "No recomendamos entidades. Te indicamos qué tipo de instrumento usar según el plazo (cuenta de ahorro, depósito a plazo, fondo de inversión, pensión voluntaria) y te permitimos simular con la tasa que te ofrezca tu banco."],
   ["¿En qué se basa el puntaje?", "En el FinHealth Score de la Financial Health Network, un método usado por bancos y aseguradoras, adaptado a la realidad latinoamericana: pensión obligatoria, sistema público de salud y centrales de riesgo."],
   ["¿Esto es asesoría financiera?", "No. Es una herramienta educativa para que entiendas tu situación y te organices. No vendemos créditos, seguros ni inversiones, ni recomendamos productos."],
   ["¿Hay versión para negocios?", "Está en camino: un test y un tablero para dueños de pequeños negocios, con margen, punto de equilibrio y flujo de caja."],
@@ -58,8 +59,8 @@ export default function Home() {
 
         <section id="acceso" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-16">
           <p className="mb-2 text-sm font-semibold text-primary">Después de pagar</p>
-          <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight md:text-4xl">Así entras a tu tablero</h2>
-          <p className="mt-3 max-w-2xl text-ink-2">Sin cuentas, sin contraseñas y sin conectar tu banco. Tus números se guardan solo en tu celular o computador.</p>
+          <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight md:text-4xl">Así accedes a tu tablero</h2>
+          <p className="mt-3 max-w-2xl text-ink-2">Sin cuentas, sin contraseñas y sin conectar tu banco. Tus cifras se guardan solo en tu celular o computador.</p>
           <AccessSteps className="mt-8" />
         </section>
 
@@ -71,7 +72,7 @@ export default function Home() {
             </div>
             <div className="space-y-4 text-lg text-ink-2">
               <p>Pulso lo hace alguien que lleva años armando tableros financieros para gerencias en Latinoamérica. La idea es simple: llevar esa misma claridad a tus finanzas, sin tecnicismos. Si una palabra no se entiende, la cambiamos.</p>
-              <p>No vendemos créditos, seguros ni inversiones, y no ganamos comisión por recomendarte nada. Por eso el tablero puede decirte sin rodeos qué recortar y qué deuda pagar primero.</p>
+              <p>No vendemos créditos, seguros ni inversiones, y no recibimos comisiones de ninguna entidad. Por eso el tablero puede decirte con total independencia qué ajustar y qué deuda priorizar.</p>
               <p className="font-serif text-2xl italic text-foreground">— El equipo de Pulso</p>
             </div>
           </div>
@@ -84,7 +85,7 @@ export default function Home() {
         <section className="mx-auto max-w-6xl px-5 pb-16">
           <div className="rounded-[28px] bg-[#0f1a17] px-6 py-12 text-[#eef3f1] md:px-12">
             <p className="text-sm font-semibold text-brand-bright">Estamos en beta</p>
-            <h2 className="mt-2 max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-4xl">Prueba el tablero completo gratis y cuéntanos qué te pareció</h2>
+            <h2 className="mt-2 max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-4xl">Prueba el tablero completo sin costo y cuéntanos tu experiencia</h2>
             <p className="mt-3 max-w-2xl text-[#b4c0bb]">Buscamos a las primeras personas que lo usen en serio. A cambio de tu opinión sincera, te damos acceso completo sin costo.</p>
             <BetaForm />
           </div>
@@ -103,7 +104,7 @@ export default function Home() {
             ))}
           </div>
           <div className="mt-12 text-center">
-            <Button asChild size="lg"><Link href="/prueba-personal">Hacer el test gratis <ArrowRight /></Link></Button>
+            <Button asChild size="lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
           </div>
         </section>
       </main>

@@ -9,7 +9,10 @@ import * as S from "@/lib/scoring"
 import * as F from "@/lib/finance"
 import type { FinanceData } from "@/lib/finance"
 import { SAMPLE } from "@/lib/sample"
-import { checkoutUrl, currencyFor, sendForm, store, validateLicense, type SavedTest } from "@/lib/store"
+import { checkoutUrl, sendForm, store, validateLicense, type SavedTest } from "@/lib/store"
+import { DEFAULT_COUNTRY, countryFromNavigator, countryFromText } from "@/lib/money"
+import { useSampleData } from "@/lib/use-country"
+import { CountryPicker } from "@/components/site/country-picker"
 import { config } from "@/config"
 import { Button } from "@/components/ui/button"
 import { BentoCard, Radar, Tooltip, type TipApi } from "./charts"
@@ -21,6 +24,7 @@ import { AccessSteps } from "@/components/home/access-steps"
 type Mode = "loading" | "demo" | "locked" | "unlocked"
 
 export function DashboardApp() {
+  const sample = useSampleData()
   const [mode, setMode] = React.useState<Mode>("loading")
   const [test, setTest] = React.useState<SavedTest | null>(null)
   const [data, setData] = React.useState<FinanceData | null>(null)
@@ -57,23 +61,26 @@ export function DashboardApp() {
     return (
       <Shell title="Así se ve un tablero" subtitle={SAMPLE.label}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amarillo/40 bg-amarillo/10 px-4 py-3 text-sm">
-          <span><b>Ejemplo ilustrativo con datos ficticios.</b> Tu tablero se arma con tu test y tus propios números.</span>
-          <Button asChild size="sm"><Link href="/prueba-personal">Hacer mi test gratis <ArrowRight /></Link></Button>
+          <span><b>Ejemplo ilustrativo con datos ficticios.</b> Tu tablero se construye con tu diagnóstico y tus propias cifras.</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <CountryPicker />
+            <Button asChild size="sm"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
+          </div>
         </div>
-        <DashboardView data={SAMPLE.data} testCode={SAMPLE.testCode} readOnly />
+        <DashboardView key={sample.currency + (sample.locale || "")} data={sample} testCode={SAMPLE.testCode} readOnly />
       </Shell>
     )
   }
 
-  if (mode === "locked") return <LockedView test={test} onUnlock={unlock} unlockMsg={unlockMsg} />
+  if (mode === "locked") return <LockedView test={test} sample={sample} onUnlock={unlock} unlockMsg={unlockMsg} />
 
   // Desbloqueado
   if (!data || editing) {
     return (
-      <Shell title={data ? "Editar mis números" : "Arma tu tablero"} subtitle="Unos 5 minutos. Puedes volver a editarlos cuando quieras.">
+      <Shell title={data ? "Editar mis cifras" : "Configura tu tablero"} subtitle="Unos 10 minutos. Puedes actualizarlas cuando quieras.">
         <BentoCard className="mx-auto max-w-3xl">
           <NumbersForm
-            initial={data || F.emptyData(currencyFor(test?.pais))}
+            initial={data || (() => { const c = countryFromText(test?.pais) || countryFromNavigator() || DEFAULT_COUNTRY; return F.emptyData(c.currency, c.locale, c.id) })()}
             onSave={(d) => { store.setData(d); setData(d); setEditing(false); window.scrollTo({ top: 0, behavior: "smooth" }) }}
             onCancel={data ? () => setEditing(false) : undefined}
           />
@@ -90,8 +97,8 @@ export function DashboardApp() {
     >
       {!test && (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card px-4 py-3 text-sm">
-          <span>Haz el test para sumar tu radar de las 5 áreas y tu plan de 30 días.</span>
-          <Button asChild size="sm" variant="outline"><Link href="/prueba-personal">Hacer el test</Link></Button>
+          <span>Haz el diagnóstico para sumar tu perfil por áreas y tu plan de 30 días.</span>
+          <Button asChild size="sm" variant="outline"><Link href="/prueba-personal">Hacer el diagnóstico</Link></Button>
         </div>
       )}
       <DashboardView data={data} testCode={test?.code} onEditNumbers={() => setEditing(true)} />
@@ -132,16 +139,16 @@ function Toolbar({ data, onEdit, onImport, onClear }: { data: FinanceData; onEdi
   }
   return (
     <div className="flex flex-wrap gap-2">
-      <Button size="sm" onClick={onEdit}><Pencil /> Editar mis números</Button>
+      <Button size="sm" onClick={onEdit}><Pencil /> Editar mis cifras</Button>
       <Button size="sm" variant="outline" onClick={exportJson} title="Descarga un respaldo para abrir tu tablero en otro dispositivo"><Download /> Respaldo</Button>
       <Button size="sm" variant="outline" onClick={() => file.current?.click()}><Upload /> Cargar respaldo</Button>
       <input ref={file} type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files?.[0] && importJson(e.target.files[0])} />
-      <Button size="sm" variant="ghost" onClick={() => { if (confirm("¿Borrar tus números de este navegador?")) onClear() }}><Trash2 /> Borrar</Button>
+      <Button size="sm" variant="ghost" onClick={() => { if (confirm("¿Borrar tus cifras de este navegador?")) onClear() }}><Trash2 /> Borrar</Button>
     </div>
   )
 }
 
-function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onUnlock: (k: string) => void; unlockMsg: string | null }) {
+function LockedView({ test, sample, onUnlock, unlockMsg }: { test: SavedTest | null; sample: FinanceData; onUnlock: (k: string) => void; unlockMsg: string | null }) {
   const tip = React.useRef<TipApi | null>(null)
   const res = React.useMemo(() => { try { return test ? S.score(S.decode(test.code)) : null } catch { return null } }, [test])
   const [key, setKey] = React.useState("")
@@ -152,7 +159,7 @@ function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onU
       {res ? (
         <div className="grid grid-cols-12 gap-4">
           <BentoCard className="col-span-12 md:col-span-5">
-            <h2 className="text-[17px] font-bold tracking-tight">Tus 5 áreas</h2>
+            <h2 className="text-[17px] font-bold tracking-tight">Perfil financiero por áreas</h2>
             <p className="text-sm text-muted-foreground">Puntaje <b className="text-foreground">{res.total}/100</b> · {res.level.name}</p>
             <Radar tip={tip} values={res.areas.map((a) => a.score)} axis={res.areas.map((a) => a.name)} size={300} />
           </BentoCard>
@@ -184,14 +191,14 @@ function LockedView({ test, onUnlock, unlockMsg }: { test: SavedTest | null; onU
       {/* Tablero bloqueado: se ve el ejemplo detrás, borroso */}
       <div className="relative mt-6 overflow-hidden rounded-[28px]">
         <div aria-hidden="true" className="pointer-events-none select-none blur-[6px] saturate-50">
-          <DashboardView data={SAMPLE.data} testCode={test?.code || SAMPLE.testCode} readOnly />
+          <DashboardView key={sample.currency} data={sample} testCode={test?.code || SAMPLE.testCode} readOnly />
         </div>
         <div className="absolute inset-0 flex items-start justify-center bg-gradient-to-b from-background/40 via-background/70 to-background/95 px-4 pt-16">
           <div className="w-full max-w-lg rounded-3xl border bg-card p-6 shadow-2xl sm:p-8">
             <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary"><Lock className="size-3.5" /> Tablero completo</div>
-            <h2 className="text-2xl font-extrabold tracking-tight">Sabe qué hacer con tu plata</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight">Tu plan financiero personal</h2>
             <ul className="mt-4 grid gap-2 text-sm text-ink-2">
-              {["Cuánto te sobra de verdad cada mes", "Dónde poner lo que te sobra para que crezca", "A dónde se va tu plata, categoría por categoría", "Qué deuda pagar primero y cuánto te ahorras", "Tu fondo de emergencia y cuándo lo completas", "Plan de 30 días e informe en PDF"].map((t) => (
+              {["Tu excedente mensual real y tu tasa de ahorro", "Asignación de tu excedente por objetivo y simulador de interés compuesto", "Distribución de tus gastos por categoría", "Plan de desendeudamiento y los intereses que te ahorras", "Fondo de emergencia y fecha estimada para completarlo", "Plan de 30 días e informe en PDF"].map((t) => (
                 <li key={t} className="flex gap-2"><span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />{t}</li>
               ))}
             </ul>
@@ -238,7 +245,7 @@ function Feedback() {
   return (
     <BentoCard className="mt-4">
       <h2 className="text-[17px] font-bold tracking-tight">¿Te está sirviendo?</h2>
-      <p className="text-sm text-muted-foreground">Estamos empezando y cada comentario cambia el producto. No envía tus números, solo lo que escribas aquí.</p>
+      <p className="text-sm text-muted-foreground">Estamos empezando y cada comentario cambia el producto. No envía tus cifras, solo lo que escribas aquí.</p>
       <form onSubmit={submit} className="mt-3 grid gap-3">
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="Qué te gustó, qué te faltó, qué no entendiste…" className="rounded-xl border bg-card p-3 text-sm outline-none focus:border-primary" />
         <div className="flex flex-wrap items-center gap-3">

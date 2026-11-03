@@ -11,12 +11,12 @@ export const EXPENSE_TYPES = ['esencial', 'importante', 'prescindible'];
 export const DEFAULT_EXPENSES = [
   { id: 'vivienda', name: 'Vivienda', type: 'esencial' },
   { id: 'mercado', name: 'Mercado', type: 'esencial' },
-  { id: 'servicios', name: 'Servicios públicos', type: 'esencial' },
+  { id: 'servicios', name: 'Servicios básicos (luz, agua, gas)', type: 'esencial' },
   { id: 'transporte', name: 'Transporte', type: 'esencial' },
   { id: 'salud', name: 'Salud y seguros', type: 'esencial' },
   { id: 'educacion', name: 'Educación', type: 'importante' },
   { id: 'conectividad', name: 'Celular e internet', type: 'importante' },
-  { id: 'comida', name: 'Comida fuera y domicilios', type: 'prescindible' },
+  { id: 'comida', name: 'Restaurantes y comida a domicilio', type: 'prescindible' },
   { id: 'compras', name: 'Ropa y compras', type: 'prescindible' },
   { id: 'ocio', name: 'Entretenimiento y suscripciones', type: 'prescindible' },
   { id: 'otros', name: 'Otros', type: 'importante' },
@@ -27,14 +27,16 @@ export const REF = {
   savingsRate: 0.10,     // ahorrar al menos 10% del ingreso
   debtLoad: 0.30,        // cuotas de deuda por debajo de 30% del ingreso
   housing: 0.35,         // vivienda por debajo de 35% del ingreso
-  wants: 0.30,           // gastos prescindibles por debajo de 30% (regla 50/30/20)
+  wants: 0.30,           // gastos discrecionales por debajo de 30% (regla 50/30/20)
 };
 
 const n = (x) => (Number.isFinite(Number(x)) ? Math.max(0, Number(x)) : 0);
 
-export function emptyData(currency = 'USD') {
+export function emptyData(currency = 'USD', locale, country) {
   return {
     currency,
+    ...(locale ? { locale } : {}),
+    ...(country ? { country } : {}),
     income: 0,
     savings: 0,
     emergencyTargetMonths: 3,
@@ -128,12 +130,12 @@ export function projection(start, monthly, months = 12) {
 export function recommendations(data, s = summarize(data)) {
   const out = [];
   const pct = (x) => Math.round(x * 100);
-  if (s.income <= 0) return [{ id: 'sin_ingreso', priority: 1, level: 'alta', title: 'Escribe tu ingreso mensual', detail: 'Sin tu ingreso no podemos calcular tu margen, tu tasa de ahorro ni tu carga de deudas.' }];
+  if (s.income <= 0) return [{ id: 'sin_ingreso', priority: 1, level: 'alta', title: 'Registra tu ingreso mensual', detail: 'Sin tu ingreso no podemos calcular tu excedente, tu tasa de ahorro ni tu nivel de endeudamiento.' }];
 
   if (s.margin < 0) {
     out.push({ id: 'margen_negativo', priority: 1, level: 'alta',
-      title: 'Gastas más de lo que ganas',
-      detail: `Cada mes salen ${'{m:' + Math.round(-s.margin) + '}'} más de lo que entra. Tus gastos prescindibles suman ${'{m:' + Math.round(s.byType.prescindible) + '}'}: es el primer lugar para recortar.`,
+      title: 'Tu flujo de caja mensual es negativo',
+      detail: `Cada mes egresan ${'{m:' + Math.round(-s.margin) + '}'} más de lo que ingresa. Tus gastos discrecionales suman ${'{m:' + Math.round(s.byType.prescindible) + '}'}: es el primer rubro a ajustar.`,
       metric: -s.margin });
   }
 
@@ -143,50 +145,50 @@ export function recommendations(data, s = summarize(data)) {
     const withExtra = payoff(s.debts, extra, 'avalancha');
     const top = s.debts.slice().sort((a, b) => b.rate - a.rate || a.balance - b.balance)[0];
     if (!base.feasible) {
-      out.push({ id: 'deuda_no_baja', priority: 1, level: 'alta', title: 'Con las cuotas mínimas tus deudas no bajan',
-        detail: `Los intereses se comen las cuotas. Prioriza ${top.name} (${top.rate}% mensual) y habla con tu banco para reestructurar.` });
+      out.push({ id: 'deuda_no_baja', priority: 1, level: 'alta', title: 'Tus pagos mínimos no reducen el saldo',
+        detail: `Los intereses absorben las cuotas. Prioriza ${top.name} (${'{d:' + top.rate + '}'}% mensual) y solicita a tu banco una reestructuración o una consolidación de deudas.` });
     } else if (extra > 0 && withExtra.feasible) {
       const saved = Math.max(0, base.totalInterest - withExtra.totalInterest);
       out.push({ id: 'plan_deudas', priority: s.debtLoad > REF.debtLoad ? 2 : 3, level: s.debtLoad > REF.debtLoad ? 'alta' : 'media',
-        title: `Paga primero ${top.name}`,
-        detail: `Es la de mayor tasa (${top.rate}% mensual). Con ${'{m:' + Math.round(extra) + '}'} extra al mes quedas libre de deudas en ${withExtra.months} meses en vez de ${base.months} y te ahorras ${'{m:' + Math.round(saved) + '}'} en intereses.`,
+        title: `Prioriza ${top.name}`,
+        detail: `Es la de mayor tasa (${'{d:' + top.rate + '}'}% mensual). Con un abono extra a capital de ${'{m:' + Math.round(extra) + '}'} al mes quedas libre de deudas en ${withExtra.months} meses en lugar de ${base.months} y te ahorras ${'{m:' + Math.round(saved) + '}'} en intereses.`,
         metric: saved });
     }
     if (s.debtLoad > REF.debtLoad) {
-      out.push({ id: 'carga_deuda', priority: 2, level: 'alta', title: `Tus cuotas se llevan ${pct(s.debtLoad)}% de tu ingreso`,
-        detail: `La referencia es menos de ${pct(REF.debtLoad)}%. No tomes deudas nuevas hasta bajar de ese nivel.`, metric: s.debtLoad });
+      out.push({ id: 'carga_deuda', priority: 2, level: 'alta', title: `Tu nivel de endeudamiento es ${pct(s.debtLoad)}%`,
+        detail: `Tus cuotas comprometen ${pct(s.debtLoad)}% de tu ingreso; la referencia es menos de ${pct(REF.debtLoad)}%. Evita nuevas deudas hasta ubicarte por debajo de ese nivel.`, metric: s.debtLoad });
     }
   }
 
   if (s.emergencyMonths !== null && s.emergencyMonths < s.targetMonths) {
     const months = s.margin > 0 ? Math.ceil(s.emergencyGap / s.margin) : null;
     out.push({ id: 'colchon', priority: s.emergencyMonths < 1 ? 1 : 2, level: s.emergencyMonths < 1 ? 'alta' : 'media',
-      title: `Tu colchón cubre ${s.emergencyMonths.toFixed(1).replace('.', ',')} meses`,
+      title: `Tu fondo de emergencia cubre ${'{d:' + Math.round(s.emergencyMonths * 10) / 10 + '}'} meses`,
       detail: `Te faltan ${'{m:' + Math.round(s.emergencyGap) + '}'} para cubrir ${s.targetMonths} meses de gastos esenciales.` +
-        (months ? ` Ahorrando todo tu margen actual lo completas en ${months} ${months === 1 ? 'mes' : 'meses'}.` : ' Primero necesitas que te sobre dinero cada mes.'),
+        (months ? ` Destinando todo tu excedente lo completas en ${months} ${months === 1 ? 'mes' : 'meses'}.` : ' Primero necesitas generar excedente mensual.'),
       metric: s.emergencyGap });
   }
 
   if (s.margin >= 0 && s.savingsRate < REF.savingsRate) {
     const need = Math.round(REF.savingsRate * s.income - s.margin);
     const share = s.byType.prescindible > 0 ? Math.min(100, Math.round((need / s.byType.prescindible) * 100)) : null;
-    out.push({ id: 'tasa_ahorro', priority: 3, level: 'media', title: `Ahorras ${pct(s.savingsRate)}% de tu ingreso`,
-      detail: `Para llegar a ${pct(REF.savingsRate)}% necesitas liberar ${'{m:' + need + '}'} al mes` + (share !== null ? `, un ${share}% de tus gastos prescindibles.` : '.'),
+    out.push({ id: 'tasa_ahorro', priority: 3, level: 'media', title: `Tu tasa de ahorro es ${pct(s.savingsRate)}%`,
+      detail: `Para llegar a ${pct(REF.savingsRate)}% necesitas liberar ${'{m:' + need + '}'} al mes` + (share !== null ? `, equivalente al ${share}% de tus gastos discrecionales.` : '.'),
       metric: need });
   }
 
   if (s.wantsShare > REF.wants) {
-    out.push({ id: 'prescindibles', priority: 3, level: 'media', title: `Tus gastos prescindibles son ${pct(s.wantsShare)}% de tu ingreso`,
-      detail: `La referencia 50/30/20 sugiere no pasar de ${pct(REF.wants)}%. Revisa suscripciones y domicilios: suelen ser lo más fácil de recortar.`, metric: s.wantsShare });
+    out.push({ id: 'prescindibles', priority: 3, level: 'media', title: `Tus gastos discrecionales son ${pct(s.wantsShare)}% de tu ingreso`,
+      detail: `La regla 50/30/20 sugiere no superar ${pct(REF.wants)}%. Revisa suscripciones y comida a domicilio: suelen ser los rubros más fáciles de ajustar.`, metric: s.wantsShare });
   }
   if (s.housingShare > REF.housing) {
-    out.push({ id: 'vivienda', priority: 4, level: 'baja', title: `Tu vivienda se lleva ${pct(s.housingShare)}% de tu ingreso`,
-      detail: `Lo recomendable es menos de ${pct(REF.housing)}%. No es urgente, pero tenlo en cuenta en tu próxima renovación o mudanza.`, metric: s.housingShare });
+    out.push({ id: 'vivienda', priority: 4, level: 'baja', title: `Tu vivienda representa ${pct(s.housingShare)}% de tu ingreso`,
+      detail: `Lo recomendable es menos de ${pct(REF.housing)}%. No es urgente, pero considéralo en tu próxima renovación o mudanza.`, metric: s.housingShare });
   }
 
   if (!out.length) {
-    out.push({ id: 'bien', priority: 5, level: 'baja', title: 'Tus números están sanos',
-      detail: `Te sobran ${'{m:' + Math.round(s.margin) + '}'} al mes. Asígnalos a una meta concreta (retiro, vivienda o estudio) para que no se diluyan.` });
+    out.push({ id: 'bien', priority: 5, level: 'baja', title: 'Tus indicadores están en orden',
+      detail: `Tu excedente es de ${'{m:' + Math.round(s.margin) + '}'} al mes. Asígnalo a un objetivo concreto (retiro, vivienda o educación) para que no se diluya en gasto.` });
   }
   return out.sort((a, b) => a.priority - b.priority);
 }
@@ -195,8 +197,8 @@ export function recommendations(data, s = summarize(data)) {
  * Qué hacer con lo que te sobra
  * ------------------------------------------------------------------ */
 
-// Una deuda con tasa efectiva anual mayor a esto se considera cara: pagarla "rinde" más que
-// cualquier ahorro sin riesgo.
+// Una deuda con tasa efectiva anual mayor a esto se considera de alto costo: abonarle "rinde" más
+// que cualquier ahorro de bajo riesgo.
 export const EXPENSIVE_DEBT_EA = 0.15;
 
 /** Tasa efectiva anual (0,268 = 26,8%) a partir de una tasa mensual en porcentaje (2 = 2%). */
@@ -206,14 +208,14 @@ export function effectiveAnnual(monthlyPct) {
 
 /** Dónde poner el dinero según para cuándo lo necesitas. Son tipos de producto, no entidades. */
 export const BUCKETS = [
-  { id: 'colchon', name: 'Colchón', when: 'Para imprevistos', products: ['Cuenta de ahorro de alto rendimiento', 'Bolsillo o “cajita” de un banco digital', 'Cuenta remunerada'],
-    risk: 'Muy bajo', access: 'Inmediato', tip: 'Que esté separado de tu cuenta del día a día y lo puedas sacar el mismo día.' },
-  { id: 'deudas', name: 'Deudas caras', when: 'Ahora', products: ['Abono extra a capital de la deuda con la tasa más alta'],
-    risk: 'Ninguno', access: '—', tip: 'Pide que el abono vaya a capital y no a cuotas futuras.' },
-  { id: 'metas', name: 'Metas de 6 meses a 3 años', when: 'Viaje, estudio, cuota inicial', products: ['Depósito a plazo fijo (CDT, plazo fijo, depósito a plazo)', 'Fondo de inversión de renta fija o “money market”'],
-    risk: 'Bajo', access: 'Al vencimiento o en pocos días', tip: 'Elige el plazo según la fecha de tu meta: si lo sacas antes, puedes perder intereses.' },
-  { id: 'largo', name: 'Largo plazo (más de 3 años)', when: 'Retiro, independencia', products: ['Fondo de inversión diversificado o indexado', 'Pensión voluntaria (en algunos países con beneficio tributario)'],
-    risk: 'Medio: sube y baja en el camino', access: 'En días; ideal no tocarlo', tip: 'Aporta todos los meses sin importar si el mercado sube o baja.' },
+  { id: 'colchon', name: 'Fondo de emergencia', when: 'Liquidez para imprevistos', products: ['Cuenta de ahorro de alto rendimiento', 'Subcuenta de ahorro en un banco digital', 'Cuenta remunerada'],
+    risk: 'Muy bajo', access: 'Inmediata', tip: 'Mantenlo separado de tu cuenta del día a día y con retiro inmediato.' },
+  { id: 'deudas', name: 'Deuda de alto costo', when: 'Prioridad inmediata', products: ['Abono extraordinario a capital de la deuda con mayor tasa'],
+    risk: 'Ninguno', access: 'No aplica', tip: 'Indica a tu banco que el abono se aplique a capital y no a cuotas futuras.' },
+  { id: 'metas', name: 'Metas de mediano plazo', when: '6 meses a 3 años: viaje, estudios, cuota inicial', products: ['Depósito a plazo fijo (CDT, plazo fijo o depósito a plazo)', 'Fondo de inversión de renta fija o del mercado monetario'],
+    risk: 'Bajo', access: 'Al vencimiento o en pocos días', tip: 'Elige un plazo que coincida con la fecha de tu meta: retirar antes puede costarte los intereses.' },
+  { id: 'largo', name: 'Inversión de largo plazo', when: 'Más de 3 años: retiro, independencia financiera', products: ['Fondo de inversión diversificado o indexado', 'Plan de pensión voluntaria (con beneficio tributario en algunos países)'],
+    risk: 'Moderado: fluctúa en el corto plazo', access: 'En días; idealmente no retirar', tip: 'Aporta de forma constante cada mes, sin intentar adivinar el mercado.' },
 ];
 
 /**

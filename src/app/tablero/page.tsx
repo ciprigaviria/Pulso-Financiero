@@ -5,7 +5,7 @@ import { DashboardApp } from "@/components/dashboard/dashboard-app"
 
 export const metadata: Metadata = {
   title: "Tu tablero financiero",
-  description: "Tu tablero personal: cuánto te queda al mes, a dónde se va tu plata, tu plan de deudas y recomendaciones con tus números.",
+  description: "Tu tablero personal: excedente mensual, distribución de gastos, plan de desendeudamiento y asignación de tu excedente, en la moneda de tu país.",
 }
 
 export default function Tablero() {

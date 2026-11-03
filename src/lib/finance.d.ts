@@ -3,7 +3,7 @@ export type ExpenseType = 'esencial' | 'importante' | 'prescindible';
 export interface Expense { id: string; name: string; type: ExpenseType; amount: number }
 export interface Debt { id: string; name: string; balance: number; rate: number; min: number }
 export interface FinanceData {
-  currency: string; income: number; savings: number; emergencyTargetMonths: number; extraDebtPayment: number;
+  currency: string; locale?: string; country?: string; income: number; savings: number; emergencyTargetMonths: number; extraDebtPayment: number;
   expenses: Expense[]; debts: Debt[];
 }
 export interface Summary {
@@ -18,7 +18,7 @@ export interface Recommendation { id: string; priority: number; level: 'alta' | 
 export const EXPENSE_TYPES: ExpenseType[];
 export const DEFAULT_EXPENSES: Omit<Expense, 'amount'>[];
 export const REF: { savingsRate: number; debtLoad: number; housing: number; wants: number };
-export function emptyData(currency?: string): FinanceData;
+export function emptyData(currency?: string, locale?: string, country?: string): FinanceData;
 export function summarize(data: FinanceData): Summary;
 export function payoff(debts: Debt[], extra?: number, method?: 'avalancha' | 'bola', maxMonths?: number): Payoff;
 export function projection(start: number, monthly: number, months?: number): number[];
