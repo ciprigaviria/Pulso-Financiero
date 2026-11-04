@@ -8,6 +8,7 @@ import * as S from "@/lib/scoring"
 import * as F from "@/lib/finance"
 import type { FinanceData } from "@/lib/finance"
 import { moneyFormatter, withMoney, store } from "@/lib/store"
+import type { Fmt } from "@/lib/money"
 import { BentoCard, CountUp, LineChart, Radar, Segmented, Tooltip, Treemap, type TipApi, type TreeGroup } from "./charts"
 import { cn } from "@/lib/utils"
 import { SurplusCard } from "./surplus-card"
@@ -58,15 +59,6 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
   const actual = F.projection(s.savings, Math.max(0, s.margin), 12)
   const plan = F.projection(s.savings, Math.max(0, s.margin + cut), 12)
 
-  // Deudas
-  const [method, setMethod] = React.useState(0)
-  // Mismo pago extra que usa la recomendación: el que escribiste o la mitad de tu margen.
-  const maxExtra = Math.max(10, Math.round(Math.max(s.margin, s.income * 0.2)))
-  const [extra, setExtra] = React.useState(Math.min(maxExtra, data.extraDebtPayment || Math.max(0, Math.round(s.margin * 0.5))))
-  const base = React.useMemo(() => F.payoff(s.debts, 0, "avalancha"), [s.debts])
-  const plan2 = React.useMemo(() => F.payoff(s.debts, extra, method ? "bola" : "avalancha"), [s.debts, extra, method])
-  const debtLabels = monthLabels(Math.max(1, plan2.series.length - 1))
-  const baseSeries = plan2.series.map((_, i) => base.series[Math.min(i, base.series.length - 1)] ?? 0)
 
   // Plan de 30 días (del test)
   const [checks, setChecks] = React.useState<Record<string, boolean>>({})
@@ -161,37 +153,7 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
       </BentoCard>
 
       {/* Deudas */}
-      <BentoCard className="col-span-12 lg:col-span-7">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h2 className="text-[17px] font-bold tracking-tight">Plan de desendeudamiento</h2>
-            <p className="text-sm text-muted-foreground">{s.debts.length ? `${fmt.full(s.totalDebt)} en ${s.debts.length} ${s.debts.length === 1 ? "deuda" : "deudas"}` : "No registraste deudas."}</p>
-          </div>
-          {s.debts.length > 0 && <Segmented label="Método" items={["Avalancha", "Bola de nieve"]} value={method} onChange={setMethod} />}
-        </div>
-        {s.debts.length > 0 ? (
-          <>
-            <p className="mt-3 text-xs text-muted-foreground">{method ? "Bola de nieve: prioriza la deuda de menor saldo; ves resultados más rápido." : "Avalancha: prioriza la deuda de mayor tasa; pagas menos intereses en total."}</p>
-            <label className="mt-3 block text-sm font-semibold">
-              Abono extra a capital al mes: <span className="font-num">{fmt.full(extra)}</span>
-              <input type="range" min={0} max={maxExtra} step={Math.max(1, Math.round(maxExtra / 100))} value={Math.min(extra, maxExtra)} onChange={(e) => setExtra(Number(e.target.value))} className="mt-2 w-full accent-[var(--primary)]" aria-label="Abono extra a capital al mes" />
-            </label>
-            <div className="my-4 grid grid-cols-3 gap-3">
-              <div><div className="text-xs text-muted-foreground">Libre de deudas en</div><div className="font-num text-2xl font-bold">{plan2.feasible ? `${plan2.months} meses` : "—"}</div></div>
-              <div><div className="text-xs text-muted-foreground">Intereses totales</div><div className="font-num text-2xl font-bold">{fmt.compact(plan2.totalInterest)}</div></div>
-              <div><div className="text-xs text-muted-foreground">Intereses que te ahorras</div><div className="font-num text-2xl font-bold text-verde">{base.feasible && plan2.feasible ? fmt.compact(Math.max(0, base.totalInterest - plan2.totalInterest)) : "—"}</div></div>
-            </div>
-            {!plan2.feasible && <p className="mb-3 flex items-center gap-2 rounded-xl bg-rojo/10 p-3 text-sm text-rojo"><AlertTriangle className="size-4" />Con estos pagos los intereses impiden reducir el saldo. Aumenta el abono extra.</p>}
-            {plan2.feasible && <LineChart tip={tip} labels={debtLabels} format={fmt.compact} height={170}
-              series={[{ name: "Con tu plan", values: plan2.series, color: "var(--primary)" }, { name: "Solo pagos mínimos", values: baseSeries, color: "var(--muted-foreground)", dashed: true }]} />}
-            <ul className="mt-3 grid gap-1.5 text-sm">
-              {s.debts.slice().sort((a, b) => (plan2.payoffMonth[a.id] ?? 1e9) - (plan2.payoffMonth[b.id] ?? 1e9)).map((d, i) => (
-                <li key={d.id} className="flex justify-between border-t pt-1.5"><span className="text-ink-2">{i + 1}. {d.name} <span className="text-xs text-muted-foreground">({fmt.num(d.rate, 2)}% mensual)</span></span><span className="font-num">{plan2.payoffMonth[d.id] ? `mes ${plan2.payoffMonth[d.id]}` : "—"}</span></li>
-              ))}
-            </ul>
-          </>
-        ) : <div className="grid h-40 place-items-center text-sm text-muted-foreground">Agrega tus deudas para ver tu plan de salida.</div>}
-      </BentoCard>
+      <DebtPlanCard data={data} s={s} fmt={fmt} tip={tip} />
 
       {/* Fondo de emergencia */}
       <BentoCard className="col-span-12 lg:col-span-5">
@@ -233,5 +195,51 @@ export function DashboardView({ data, testCode, readOnly = false, onEditNumbers 
       )}
       <Tooltip api={tip} />
     </div>
+  )
+}
+
+/** Plan de desendeudamiento: método, abono extra, meses, intereses y gráfico. Se usa también en el tablero Premium. */
+export function DebtPlanCard({ data, s, fmt, tip, className = "col-span-12 lg:col-span-7" }: { data: FinanceData; s: F.Summary; fmt: Fmt; tip: React.MutableRefObject<TipApi | null>; className?: string }) {
+  const [method, setMethod] = React.useState(0)
+  // Mismo pago extra que usa la recomendación: el que escribiste o la mitad de tu margen.
+  const maxExtra = Math.max(10, Math.round(Math.max(s.margin, s.income * 0.2)))
+  const [extra, setExtra] = React.useState(Math.min(maxExtra, data.extraDebtPayment || Math.max(0, Math.round(s.margin * 0.5))))
+  const base = React.useMemo(() => F.payoff(s.debts, 0, "avalancha"), [s.debts])
+  const plan2 = React.useMemo(() => F.payoff(s.debts, extra, method ? "bola" : "avalancha"), [s.debts, extra, method])
+  const debtLabels = monthLabels(Math.max(1, plan2.series.length - 1))
+  const baseSeries = plan2.series.map((_, i) => base.series[Math.min(i, base.series.length - 1)] ?? 0)
+  return (
+      <BentoCard className={className}>
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-[17px] font-bold tracking-tight">Plan de desendeudamiento</h2>
+            <p className="text-sm text-muted-foreground">{s.debts.length ? `${fmt.full(s.totalDebt)} en ${s.debts.length} ${s.debts.length === 1 ? "deuda" : "deudas"}` : "No registraste deudas."}</p>
+          </div>
+          {s.debts.length > 0 && <Segmented label="Método" items={["Avalancha", "Bola de nieve"]} value={method} onChange={setMethod} />}
+        </div>
+        {s.debts.length > 0 ? (
+          <>
+            <p className="mt-3 text-xs text-muted-foreground">{method ? "Bola de nieve: prioriza la deuda de menor saldo; ves resultados más rápido." : "Avalancha: prioriza la deuda de mayor tasa; pagas menos intereses en total."}</p>
+            <label className="mt-3 block text-sm font-semibold">
+              Abono extra a capital al mes: <span className="font-num">{fmt.full(extra)}</span>
+              <input type="range" min={0} max={maxExtra} step={Math.max(1, Math.round(maxExtra / 100))} value={Math.min(extra, maxExtra)} onChange={(e) => setExtra(Number(e.target.value))} className="mt-2 w-full accent-[var(--primary)]" aria-label="Abono extra a capital al mes" />
+            </label>
+            <div className="my-4 grid grid-cols-3 gap-3">
+              <div><div className="text-xs text-muted-foreground">Libre de deudas en</div><div className="font-num text-2xl font-bold">{plan2.feasible ? `${plan2.months} meses` : "—"}</div></div>
+              <div><div className="text-xs text-muted-foreground">Intereses totales</div><div className="font-num text-2xl font-bold">{fmt.compact(plan2.totalInterest)}</div></div>
+              <div><div className="text-xs text-muted-foreground">Intereses que te ahorras</div><div className="font-num text-2xl font-bold text-verde">{base.feasible && plan2.feasible ? fmt.compact(Math.max(0, base.totalInterest - plan2.totalInterest)) : "—"}</div></div>
+            </div>
+            {!plan2.feasible && <p className="mb-3 flex items-center gap-2 rounded-xl bg-rojo/10 p-3 text-sm text-rojo"><AlertTriangle className="size-4" />Con estos pagos los intereses impiden reducir el saldo. Aumenta el abono extra.</p>}
+            {plan2.feasible && <LineChart tip={tip} labels={debtLabels} format={fmt.compact} height={170}
+              series={[{ name: "Con tu plan", values: plan2.series, color: "var(--primary)" }, { name: "Solo pagos mínimos", values: baseSeries, color: "var(--muted-foreground)", dashed: true }]} />}
+            <ul className="mt-3 grid gap-1.5 text-sm">
+              {s.debts.slice().sort((a, b) => (plan2.payoffMonth[a.id] ?? 1e9) - (plan2.payoffMonth[b.id] ?? 1e9)).map((d, i) => (
+                <li key={d.id} className="flex justify-between border-t pt-1.5"><span className="text-ink-2">{i + 1}. {d.name} <span className="text-xs text-muted-foreground">({fmt.num(d.rate, 2)}% mensual)</span></span><span className="font-num">{plan2.payoffMonth[d.id] ? `mes ${plan2.payoffMonth[d.id]}` : "—"}</span></li>
+              ))}
+            </ul>
+          </>
+        ) : <div className="grid h-40 place-items-center text-sm text-muted-foreground">Agrega tus deudas para ver tu plan de salida.</div>}
+      </BentoCard>
+
   )
 }

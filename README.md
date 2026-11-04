@@ -103,7 +103,7 @@ Sirven para revisar el tablero como cliente, para la beta y para aliados, sin pa
 
 ## Bot de WhatsApp (piloto)
 
-La persona escribe "almuerzo 25 mil" por WhatsApp; el bot lo entiende, lo guarda y responde con la confirmación. En **Mis movimientos** (`/movimientos`, enlace personal que da el bot) ve su mes graficado y puede llevarlo a su tablero.
+La persona escribe "almuerzo 25 mil" por WhatsApp; el bot lo entiende, lo guarda y responde con la confirmación. En su **tablero Premium** (`/tablero`, enlace personal que da el bot) ve su mes, su presupuesto, sus metas y sus recomendaciones.
 
 ```
 WhatsApp ──► Meta ──► Relevo (Cloudflare Worker) ──► Apps Script del bot ──► Hoja de cálculo
@@ -116,9 +116,9 @@ Sitio /movimientos ◄──────────── GET ?action=movimient
 | --- | --- |
 | `apps-script-bot/Bot.gs` | El bot, en un solo archivo de Apps Script (proyecto aparte del de pagos) |
 | `relay/worker.js` | El relevo que recibe los avisos de Meta |
-| `src/components/bot/` y `src/lib/bot-categories.ts` | La página Mis movimientos |
+| `src/components/premium/`, `src/lib/premium.ts`, `src/data/tasas.ts` | El tablero Premium, su motor y las tasas por país |
 
-Ejemplo sin bot: `/movimientos?ejemplo`.
+Ejemplo sin bot: `/tablero?ejemplo`.
 
 ### Lo que entiende
 - Gastos e ingresos en lenguaje natural, varios por mensaje: "taxi 12.000 y café 6.000", "me pagaron la quincena 2,1 millones", "ayer súper 85 mil".
@@ -156,6 +156,22 @@ Ejemplo sin bot: `/movimientos?ejemplo`.
 
 ### Privacidad
 Los movimientos del bot se guardan en la hoja de la marca (a diferencia del tablero, donde las cifras viven en el navegador). Antes de abrir el bot al público: actualizar la política de privacidad, identificar al responsable (la SAS) y mantener el comando **borrar mis datos**.
+
+## Tablero Premium
+`/tablero/?t=<enlace personal>` (el asistente lo envía con el mensaje "tablero"). Ejemplo sin bot: `/tablero/?ejemplo`.
+
+- **Resumen**: ingresos, gastos, cuánto te queda, cumplimiento del presupuesto, gasto acumulado, a dónde se va el dinero, pagos fijos y la recomendación del mes.
+- **Presupuesto** por categoría (con "Sugerir con mis gastos"). El asistente avisa en cada registro cómo va esa categoría y alerta desde el 80 %.
+- **Metas** con avance y cuánto apartar al mes. **Plan**: reparto del excedente, instrumentos, simulador y plan de desendeudamiento.
+- **Recomendaciones** de ahorro con enlace a la guía oficial del país y prioridades del mes.
+- **Tasas**: inflación, tasa del banco central y referencia de ahorro del país con fuente y fecha, y el cálculo del rendimiento real de la tasa que escribe la persona.
+- **Mis datos**: ahorros, meta del fondo, deudas y pagos fijos. Se guarda en la hoja **Perfiles** del bot.
+- El asistente **aprende de las correcciones**: si cambias "varios" a Mercado, la próxima vez lo clasifica solo.
+
+Las cuentas del presupuesto, metas, pagos fijos y tasa real se validan contra Python en `npm test`.
+
+### Actualizar las tasas (una vez al mes)
+Edita `src/data/tasas.ts`: para cada país, el valor, el periodo, la fuente y su enlace oficial, y la fecha `TASAS_REVISADAS`. Publica solo datos con fuente oficial verificable; si no hay, deja el país sin datos (la página lo explica).
 
 ## Antes de publicar
 - [ ] Revisar las páginas de privacidad y aviso legal (`src/app/privacidad`, `src/app/aviso-legal`) con un abogado. La ley colombiana de datos (Ley 1581) exige identificar al responsable del tratamiento: si no quieres que aparezca tu nombre, ese responsable puede ser una empresa (por ejemplo, una SAS) a nombre de la marca.

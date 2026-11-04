@@ -3,7 +3,6 @@ import { ArrowRight } from "lucide-react"
 import { SiteHeader } from "@/components/site/site-header"
 import { SiteFooter } from "@/components/site/site-footer"
 import { Hero } from "@/components/home/hero"
-import { DashboardPreview } from "@/components/home/dashboard-preview"
 import { Personas } from "@/components/home/personas"
 import { BetaForm } from "@/components/home/beta-form"
 import { AccessSteps } from "@/components/home/access-steps"
@@ -86,8 +85,6 @@ export default function Home() {
             <div className="mt-8"><FeatureCards /></div>
           </div>
         </section>
-
-        <DashboardPreview />
 
         <section id="acceso" className="mx-auto max-w-6xl scroll-mt-20 px-5 pt-16">
           <p className="mb-2 text-sm font-semibold text-primary">Al suscribirte</p>

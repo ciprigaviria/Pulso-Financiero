@@ -17,7 +17,7 @@ export function SiteHeader({ minimal = false, tone = "light" }: { minimal?: bool
           <span className="text-sm text-muted-foreground">Test personal · 5 min</span>
         ) : (
           <nav className={cn("flex items-center gap-6 text-sm font-semibold", dark ? "text-white/60" : "text-ink-2")}>
-            {[["/#tablero", "El tablero"], ["/tablero", "Mi tablero"], ["/#acceso", "Cómo funciona"], ["/#precios", "Precios"]].map(([href, label]) => (
+            {[["/#como-funciona", "Cómo funciona"], ["/#incluye", "Premium"], ["/#precios", "Precios"], ["/tablero", "Mi tablero"]].map(([href, label]) => (
               <Link key={href} href={href} className={cn("hidden transition-colors md:inline", dark ? "hover:text-white" : "hover:text-foreground")}>{label}</Link>
             ))}
             <Button asChild size="sm" variant={dark ? "white" : "default"} className={dark ? "rounded-lg" : undefined}><Link href="/prueba-personal">Hacer el test</Link></Button>

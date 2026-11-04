@@ -55,7 +55,7 @@ function makeEnv(extraProps: Record<string, string> = {}) {
     },
   };
   vm.createContext(env);
-  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
+  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
   const bot = env.__bot;
   bot.setup();
   let n = 0;
@@ -162,7 +162,7 @@ if (dumpIdx > -1) {
   assert.ok(x.replies[0].includes('Ingreso · Salario · $ 2.100.000'), x.replies[0]);
   x = say(CO, 'resumen');
   assert.ok(x.replies[0].includes('Ingresos: $ 2.100.000') && x.replies[0].includes('Gastos: $ 37.000') && x.replies[0].includes('Excedente: $ 2.063.000') && x.replies[0].includes('tasa de ahorro 98%'), x.replies[0]);
-  assert.ok(x.replies[0].includes('https://pulso.test/movimientos/?t='));
+  assert.ok(x.replies[0].includes('https://pulso.test/tablero/?t='));
   x = say(CO, '¿Cuánto llevo en restaurantes?');
   assert.equal(x.replies[0], 'Restaurantes y domicilios en noviembre 2026: $ 25.000 en 1 movimiento.');
   x = say(CO, 'borrar');
@@ -263,4 +263,54 @@ if (dumpIdx > -1) {
   assert.deepEqual(g, w);
   assert.equal(g.porCategoria.comida, 25000.3); assert.equal(g.excedente, 2062999.2);
   console.log('✓ Totales del mes idénticos en el bot y en el sitio');
+}
+
+// ---- 7. Perfil desde el tablero, avisos de presupuesto y aprendizaje ----
+{
+  const { say, sheets, bot } = makeEnv();
+  const CO = '573001234567';
+  say(CO, 'hola');
+  const token = sheets.Usuarios[1][4];
+  const web = (perfil: any, t = token) => bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t, perfil }) } });
+  assert.equal(web({ presupuestos: { comida: 100000 } }, 'x'.repeat(32)).ok, false, 'enlace inválido no guarda');
+  const r = web({ presupuestos: { comida: 100000, salario: 5, transporte: -3 }, metas: [{ nombre: '<i>Viaje</i>', monto: 900000, ahorrado: 300000, fecha: '2027-05' }], deudas: [{ name: 'TC', balance: 1e6, rate: 2.4, min: 80000 }], pagosFijos: [{ nombre: 'Netflix', monto: 45000, dia: 40, categoria: 'ocio' }], ahorros: 500000, mesesFondo: 4 });
+  assert.equal(r.ok, true);
+  let g = bot.doGet({ parameter: { action: 'tablero', t: token } });
+  assert.deepEqual(g.perfil.presupuestos, { comida: 100000 });
+  assert.equal(g.perfil.metas[0].nombre, 'iViaje/i'); assert.equal(g.perfil.pagosFijos[0].dia, 28); assert.equal(g.perfil.mesesFondo, 4);
+  assert.equal(g.hoy, TODAY);
+  // Mismas reglas de limpieza que el sitio
+  // Aviso de presupuesto al registrar
+  let x = say(CO, 'almuerzo 50 mil');
+  assert.ok(x.replies[0].includes('Presupuesto de Restaurantes y domicilios: vas en el 50% (te quedan $ 50.000)'), x.replies[0]);
+  x = say(CO, 'cena 35 mil');
+  assert.ok(x.replies[0].includes('⚠ Vas en el 85% de tu presupuesto de Restaurantes y domicilios. Te quedan $ 15.000.'), x.replies[0]);
+  x = say(CO, 'pizza 30 mil');
+  assert.ok(x.replies[0].includes('⚠ Te pasaste en Restaurantes y domicilios por $ 15.000 (115% del presupuesto).'), x.replies[0]);
+  // Aprende de una corrección: "rappi" mal clasificado → mercado; la próxima vez ya va a mercado
+  x = say(CO, 'gastos varios 20 mil');
+  x = say(CO, 'mercado');
+  assert.equal(x.replies[0], 'Corregido: Mercado.');
+  x = say(CO, 'varios 15 mil');
+  assert.ok(x.replies[0].includes('Mercado · $ 15.000'), x.replies[0]);
+  // Guardar desde el tablero conserva lo aprendido
+  web({ presupuestos: { comida: 200000 } });
+  x = say(CO, 'varios 5 mil');
+  assert.ok(x.replies[0].includes('Mercado · $ 5.000'), x.replies[0]);
+  // Borrar mis datos elimina también el perfil
+  say(CO, 'borrar mis datos'); say(CO, 'CONFIRMAR BORRADO');
+  assert.equal(sheets.Perfiles.length, 1);
+  console.log('✓ Perfil desde el tablero, avisos de presupuesto al 50/85/115 %, aprendizaje de correcciones y borrado completo');
+}
+
+// ---- 8. El bot y el sitio limpian el perfil igual ----
+{
+  const { bot } = makeEnv();
+  const { cleanPerfil } = await import('../src/lib/premium.ts');
+  const samples = [
+    { presupuestos: { comida: 100, salario: 50, ocio: '20', xx: 3 }, metas: [{ nombre: 'x'.repeat(80), monto: '10', ahorrado: -1, fecha: '2027-01' }], deudas: [{ name: 'A', balance: 1, rate: 50, min: 'x' }], pagosFijos: [{ nombre: 'N', monto: 1, dia: 0, categoria: 'zzz' }], ahorros: '5', mesesFondo: '6' },
+    {}, { metas: Array.from({ length: 20 }, (_, i) => ({ nombre: 'm' + i, monto: i })) },
+  ];
+  for (const p of samples) assert.deepEqual(JSON.parse(JSON.stringify(bot.cleanPerfil_(p))), cleanPerfil(p as any));
+  console.log('✓ Limpieza del perfil idéntica en el bot y en el sitio');
 }

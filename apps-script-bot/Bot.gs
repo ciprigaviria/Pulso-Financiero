@@ -306,7 +306,7 @@ function validDate_(d, today) {
 
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (p.action === 'movimientos') {
+  if (p.action === 'movimientos' || p.action === 'tablero') {
     try { return json_(movementsFor_(p.t, p.mes)); }
     catch (err) { logError_(err, 'movimientos'); return json_({ ok: false, error: 'No pudimos leer tus movimientos.' }); }
   }
@@ -316,6 +316,13 @@ function doGet(e) {
 function doPost(e) {
   const c = cfg_();
   const p = (e && e.parameter) || {};
+  // Guardar el perfil desde el tablero (se autentica con el enlace personal, no con el relevo)
+  let early = null;
+  try { early = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (err) { early = null; }
+  if (early && early.action === 'perfil') {
+    try { return json_(savePerfilFromWeb_(early.t, early.perfil)); }
+    catch (err) { logError_(err, 'perfil'); return json_({ ok: false, error: 'No pudimos guardar. Intenta de nuevo.' }); }
+  }
   if (!c.RELAY_SECRET || p.k !== c.RELAY_SECRET) return json_({ ok: false, error: 'No autorizado' });
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
@@ -448,15 +455,41 @@ function handleMessage_(m, profileName, c) {
     return 'consulta';
   }
 
-  const movs = checkMovements_(parsed.movimientos, text, today);
+  const perfil = getPerfil_(from);
+  const movs = applyLearned_(checkMovements_(parsed.movimientos, text, today), perfil);
   if (!movs.length) {
     send_(from, parsed.intencion === 'otro' && parsed.respuesta ? parsed.respuesta : 'No encontré un monto en tu mensaje. Escríbelo así: "almuerzo 25 mil" o "me pagaron 1,5 millones". Escribe *ayuda* para ver ejemplos.', c);
     return 'sin monto';
   }
   const saved = saveMovements_(from, movs, country, text, m.id, source);
   updateUser_(from, { ultimo_mov_id: saved[saved.length - 1].id, ultimo_mov_ts: new Date().toISOString() });
-  send_(from, confirmText_(saved, country, today), c);
+  send_(from, confirmText_(saved, country, today) + budgetText_(from, saved, perfil, country, today), c);
   return 'registrado ' + saved.length;
+}
+
+/** Cómo va el presupuesto de las categorías que se acaban de registrar (solo si tienen presupuesto). */
+function budgetText_(from, saved, perfil, country, today) {
+  const month = today.slice(0, 7);
+  const cats = saved.filter(x => x.tipo === 'gasto' && Number(perfil.presupuestos[x.categoria]) > 0).map(x => x.categoria).filter((x, i, a) => a.indexOf(x) === i);
+  if (!cats.length) return '';
+  const spent = summarize_(userMovements_(from).filter(m => m.fecha.slice(0, 7) === month)).porCategoria;
+  return '\n\n' + cats.map(id => {
+    const budget = Number(perfil.presupuestos[id]), used = spent[id] || 0, pct = used / budget;
+    const name = categoryById_(id).name;
+    if (pct > 1) return '⚠ Te pasaste en ' + name + ' por ' + fmtMoney_(used - budget, country) + ' (' + Math.round(pct * 100) + '% del presupuesto).';
+    if (pct >= BUDGET_WARN) return '⚠ Vas en el ' + Math.round(pct * 100) + '% de tu presupuesto de ' + name + '. Te quedan ' + fmtMoney_(budget - used, country) + '.';
+    return 'Presupuesto de ' + name + ': vas en el ' + Math.round(pct * 100) + '% (te quedan ' + fmtMoney_(budget - used, country) + ').';
+  }).join('\n');
+}
+
+/** Usa lo que el bot aprendió de las correcciones: "uber" → transporte, "netflix" → ocio… */
+function applyLearned_(movs, perfil) {
+  const learned = perfil.aprendidas || {};
+  return movs.map(m => {
+    const hit = norm_(m.descripcion).replace(/[$.,]/g, ' ').split(' ').filter(w => learned[w])[0];
+    const cat = hit && categoryById_(learned[hit]);
+    return cat && cat.tipo === m.tipo ? Object.assign({}, m, { categoria: cat.id }) : m;
+  });
 }
 
 function confirmText_(saved, country, today) {
@@ -589,7 +622,7 @@ function countUsage_(user, c) {
 
 function newToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').slice(0, 32); }
 
-function userLink_(user, c) { return String(c.SITE_URL).replace(/\/$/, '') + '/movimientos/?t=' + user.token; }
+function userLink_(user, c) { return String(c.SITE_URL).replace(/\/$/, '') + '/tablero/?t=' + user.token; }
 
 function userMovements_(waId) {
   return rowsToObjects_(movSheet_().getDataRange().getValues(), MOV_COLS)
@@ -626,7 +659,71 @@ function recategorize_(waId, movId, cat) {
   const sh = movSheet_();
   sh.getRange(m._row, MOV_COLS.indexOf('categoria') + 1).setValue(cat.id);
   if (cat.tipo !== m.tipo) sh.getRange(m._row, MOV_COLS.indexOf('tipo') + 1).setValue(cat.tipo);
+  // Aprende: las palabras con significado de la descripción (hasta 3) quedan asociadas a la categoría corregida.
+  const words = norm_(m.descripcion).replace(/[$.,\d]/g, ' ').split(' ').filter(w => w.length > 2 && STOP_WORDS.indexOf(w) === -1).slice(0, 3);
+  if (words.length) {
+    const perfil = getPerfil_(waId);
+    perfil.aprendidas = perfil.aprendidas || {};
+    words.forEach(w => { perfil.aprendidas[w] = cat.id; });
+    const keys = Object.keys(perfil.aprendidas);
+    if (keys.length > 150) delete perfil.aprendidas[keys[0]];
+    savePerfil_(waId, perfil);
+  }
   return true;
+}
+
+const STOP_WORDS = ['con', 'del', 'para', 'por', 'los', 'las', 'una', 'uno', 'mil', 'pago', 'pagos', 'gasto', 'gastos', 'compra', 'pague', 'gaste', 'ayer', 'hoy', 'otro', 'otros'];
+
+/* ---------- Perfil: presupuestos, metas, deudas, pagos fijos (lo edita la persona en su tablero) ---------- */
+
+const PERFIL_COLS = ['wa_id', 'perfil', 'actualizado'];
+const perfilSheet_ = () => sheet_('Perfiles', PERFIL_COLS);
+const BUDGET_WARN = 0.8;
+
+function defaultPerfil_() { return { presupuestos: {}, metas: [], deudas: [], pagosFijos: [], ahorros: 0, mesesFondo: 3, aprendidas: {} }; }
+
+function getPerfil_(waId) {
+  const row = rowsToObjects_(perfilSheet_().getDataRange().getValues(), PERFIL_COLS).filter(r => String(r.wa_id) === String(waId))[0];
+  if (!row) return defaultPerfil_();
+  try { return Object.assign(defaultPerfil_(), JSON.parse(row.perfil)); } catch (err) { return defaultPerfil_(); }
+}
+
+function savePerfil_(waId, perfil) {
+  const sh = perfilSheet_();
+  const row = rowsToObjects_(sh.getDataRange().getValues(), PERFIL_COLS).filter(r => String(r.wa_id) === String(waId))[0];
+  const json = JSON.stringify(perfil).slice(0, 45000);
+  if (row) { sh.getRange(row._row, 2).setValue(json); sh.getRange(row._row, 3).setValue(new Date().toISOString()); }
+  else sh.appendRow(["'" + waId, json, new Date().toISOString()]);
+}
+
+/** Valida y limpia lo que llega del tablero (mismas reglas que cleanPerfil en src/lib/premium.ts). */
+function cleanPerfil_(p) {
+  const n = x => (isFinite(Number(x)) ? Math.max(0, Number(x)) : 0);
+  const txt = (x, max) => String(x == null ? '' : x).replace(/[<>]/g, '').trim().slice(0, max || 40);
+  p = p || {};
+  const presupuestos = {};
+  CATEGORIES.forEach(c => { if (c.tipo === 'gasto' && n((p.presupuestos || {})[c.id]) > 0) presupuestos[c.id] = n(p.presupuestos[c.id]); });
+  return {
+    presupuestos: presupuestos,
+    metas: (p.metas || []).slice(0, 12).map((m, i) => ({ id: txt(m.id, 20) || 'g' + i, nombre: txt(m.nombre) || 'Meta', monto: n(m.monto), ahorrado: n(m.ahorrado), fecha: /^\d{4}-\d{2}$/.test(String(m.fecha)) ? String(m.fecha) : '' })),
+    deudas: (p.deudas || []).slice(0, 12).map((d, i) => ({ id: txt(d.id, 20) || 'd' + i, name: txt(d.name) || 'Deuda', balance: n(d.balance), rate: Math.min(20, n(d.rate)), min: n(d.min) })),
+    pagosFijos: (p.pagosFijos || []).slice(0, 30).map((x, i) => ({ id: txt(x.id, 20) || 'f' + i, nombre: txt(x.nombre) || 'Pago', monto: n(x.monto), dia: Math.min(28, Math.max(1, Math.round(n(x.dia)) || 1)), categoria: categoryById_(x.categoria) ? x.categoria : 'otros' })),
+    ahorros: n(p.ahorros),
+    mesesFondo: [3, 4, 5, 6].indexOf(Number(p.mesesFondo)) > -1 ? Number(p.mesesFondo) : 3
+  };
+}
+
+function savePerfilFromWeb_(token, perfil) {
+  const user = getUserByToken_(token);
+  if (!user) return { ok: false, error: 'Este enlace no es válido o fue cambiado.' };
+  const clean = cleanPerfil_(perfil);
+  clean.aprendidas = getPerfil_(user.wa_id).aprendidas || {};
+  savePerfil_(user.wa_id, clean);
+  return { ok: true };
+}
+
+function publicPerfil_(p) {
+  return { presupuestos: p.presupuestos, metas: p.metas, deudas: p.deudas, pagosFijos: p.pagosFijos, ahorros: p.ahorros, mesesFondo: p.mesesFondo };
 }
 
 function deleteUserData_(waId) {
@@ -634,6 +731,8 @@ function deleteUserData_(waId) {
   userMovements_(waId).map(m => m._row).sort((a, b) => b - a).forEach(r => ms.deleteRow(r));
   const u = getUser_(waId);
   if (u) usersSheet_().deleteRow(u._row);
+  const pr = rowsToObjects_(perfilSheet_().getDataRange().getValues(), PERFIL_COLS).filter(r => String(r.wa_id) === String(waId))[0];
+  if (pr) perfilSheet_().deleteRow(pr._row);
 }
 
 /** Lo que ve el sitio en "Mis movimientos". */
@@ -649,7 +748,8 @@ function movementsFor_(token, mes) {
   return {
     ok: true,
     usuario: { nombre: String(user.nombre || '').split(' ')[0], pais: country.id, moneda: country.currency },
-    mes: month, meses: months.slice(0, 24),
+    mes: month, meses: months.slice(0, 24), hoy: Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd'),
+    perfil: publicPerfil_(getPerfil_(user.wa_id)),
     movimientos: all.filter(m => m.fecha.slice(0, 7) === month).map(m => ({ id: m.id, fecha: m.fecha, tipo: m.tipo, monto: m.monto, categoria: m.categoria, descripcion: m.descripcion }))
   };
 }
@@ -686,6 +786,7 @@ function setup() {
     const ss = SpreadsheetApp.create(c.BRAND_NAME + ' — Bot de WhatsApp');
     ss.getSheets()[0].setName('Usuarios').appendRow(USER_COLS);
     ss.insertSheet('Movimientos').appendRow(MOV_COLS);
+    ss.insertSheet('Perfiles').appendRow(PERFIL_COLS);
     ss.insertSheet('Errores').appendRow(['Fecha', 'Mensaje', 'Detalle']);
     ss.getSheets().forEach(s => s.getRange(1, 1, 1, s.getLastColumn()).setFontWeight('bold'));
     props.setProperty('DB_ID', ss.getId());

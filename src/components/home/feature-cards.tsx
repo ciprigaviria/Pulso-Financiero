@@ -102,16 +102,16 @@ export function FeatureCards() {
       ),
     },
     {
-      key: "tasas", title: "Tu excedente, donde más rinde", text: "Recomendaciones de inversión según tu plazo y un comparador de tasas de tu país, con su fuente oficial y la fecha de actualización.",
+      key: "tasas", title: "¿Tu ahorro le gana a la inflación?", text: "Comparamos la tasa que te paga tu banco con la inflación y las tasas de referencia de tu país, con su fuente oficial y fecha.",
       ui: (
-        <Frame icon={Landmark} title="Tasas en tu país" badge="ejemplo">
-          {[["Cuenta de alto rendimiento", "Retiro inmediato", 9.1], ["Depósito a plazo 360 días", "Al vencimiento", 10.4], ["Fondo de mercado monetario", "En 1 día", 9.6], ["Fondo diversificado", "Largo plazo · varía", 12.0]].map(([n, d, r], i) => (
-            <div key={String(n)} className="mb-2 flex items-center justify-between rounded-xl border px-3 py-2">
+        <Frame icon={Landmark} title="Tu tasa vs. tu país" badge="ejemplo">
+          {[["Inflación anual", "Fuente oficial · mensual", 6.3, ""], ["Tasa del banco central", "Referencia del mercado", 12.25, ""], ["Tu cuenta de ahorro", "La que escribes tú", 9.0, "tu"], ["Rendimiento real", "Tu tasa menos inflación", 2.6, "real"]].map(([n, d, r, kind]) => (
+            <div key={String(n)} className={cn("mb-2 flex items-center justify-between rounded-xl border px-3 py-2", kind === "real" && "border-primary/40 bg-accent/50")}>
               <span><b className="block text-sm">{n}</b><span className="text-[11px] text-muted-foreground">{d}</span></span>
-              <span className={cn("font-num text-sm font-bold", i === 1 ? "text-primary" : "")}>{fmt.num(Number(r), 1)}% EA</span>
+              <span className={cn("font-num text-sm font-bold", kind === "real" && "text-primary")}>{kind === "real" ? "+" : ""}{fmt.num(Number(r), 2)}%</span>
             </div>
           ))}
-          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"><PiggyBank className="size-3.5" />Fuente oficial y fecha en cada tasa</div>
+          <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"><PiggyBank className="size-3.5" />Fuente y fecha en cada dato</div>
         </Frame>
       ),
     },

@@ -12,8 +12,8 @@ import { SAMPLE } from "@/lib/sample"
 import { sendForm, store, validateLicense, type SavedTest } from "@/lib/store"
 import { DEFAULT_COUNTRY, countryFromNavigator, countryFromText } from "@/lib/money"
 import { useSampleData } from "@/lib/use-country"
-import { CountryPicker } from "@/components/site/country-picker"
 import { PlanPicker } from "@/components/site/plan-picker"
+import { PremiumApp, readBotToken } from "@/components/premium/premium-app"
 import { PREMIUM_FEATURES } from "@/lib/plans"
 import { config } from "@/config"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import { NumbersForm } from "./numbers-form"
 import { cn } from "@/lib/utils"
 import { AccessSteps } from "@/components/home/access-steps"
 
-type Mode = "loading" | "demo" | "locked" | "unlocked"
+type Mode = "loading" | "premium" | "locked" | "unlocked"
 
 export function DashboardApp() {
   const sample = useSampleData()
@@ -37,7 +37,8 @@ export function DashboardApp() {
     const params = new URLSearchParams(window.location.search)
     setTest(store.getTest())
     setData(store.getData())
-    if (params.has("ejemplo")) { setMode("demo"); return }
+    // Premium: enlace personal del asistente (?t=…), uno guardado antes, o el ejemplo (?ejemplo)
+    if (params.has("ejemplo") || params.has("t") || readBotToken()) { setMode("premium"); return }
     const key = params.get("licencia")
     if (key) {
       validateLicense(key).then((r) => {
@@ -59,20 +60,7 @@ export function DashboardApp() {
 
   if (mode === "loading") return <div className="grid min-h-[60vh] place-items-center text-muted-foreground">Cargando tu tablero…</div>
 
-  if (mode === "demo") {
-    return (
-      <Shell title="Así se ve un tablero" subtitle={SAMPLE.label}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amarillo/40 bg-amarillo/10 px-4 py-3 text-sm">
-          <span><b>Ejemplo ilustrativo con datos ficticios.</b> Tu tablero se construye con tu diagnóstico y tus propias cifras.</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <CountryPicker />
-            <Button asChild size="sm"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-          </div>
-        </div>
-        <DashboardView key={sample.currency + (sample.locale || "")} data={sample} testCode={SAMPLE.testCode} readOnly />
-      </Shell>
-    )
-  }
+  if (mode === "premium") return <PremiumApp />
 
   if (mode === "locked") return <LockedView test={test} sample={sample} onUnlock={unlock} unlockMsg={unlockMsg} />
 
