@@ -37,11 +37,11 @@ function PremiumCard({ plan, index }: { plan: PlanId; index: number }) {
   const url = checkoutUrl(null, undefined, plan)
   return (
     <TimelineContent as="div" animationNum={1 + index}>
-      <Card className={cn("relative h-full rounded-2xl", annual ? "bg-[#0f1a17] text-white ring-2 ring-primary" : "bg-card")}>
+      <Card className={cn("relative h-full rounded-2xl", annual ? "bg-card ring-2 ring-primary shadow-[0_0_60px_-20px_var(--glow)]" : "bg-card")}>
         <CardHeader className="text-left">
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-2xl font-extrabold tracking-tight">Premium {p.name.toLowerCase()}</h3>
-            {annual && <span className="shrink-0 rounded-full bg-brand-bright px-3 py-1 text-xs font-bold text-[#062019]">Ahorra {annualSavingPct}%</span>}
+            {annual && <span className="shrink-0 rounded-full bg-brand-bright px-3 py-1 text-xs font-bold text-primary-foreground">Ahorra {annualSavingPct}%</span>}
           </div>
           <p className={cn("mb-2 text-sm", annual ? "text-white/60" : "text-muted-foreground")}>{annual ? "Un pago al año, el mejor precio." : "Paga mes a mes, sin compromiso."}</p>
           <div className="flex min-h-14 items-baseline gap-2">

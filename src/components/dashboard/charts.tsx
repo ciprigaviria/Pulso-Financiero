@@ -124,7 +124,7 @@ export function Tooltip({ api }: { api: TipRef }) {
 
 export function BentoCard({ className, children, ...rest }: React.ComponentProps<"section">) {
   return (
-    <section className={cn("relative min-w-0 overflow-hidden rounded-[24px] border bg-card p-5 text-card-foreground shadow-sm sm:p-6", className)} {...rest}>
+    <section className={cn("glow-card relative min-w-0 overflow-hidden rounded-[24px] border bg-card p-5 text-card-foreground shadow-sm sm:p-6", className)} {...rest}>
       {children}
     </section>
   )
@@ -211,7 +211,7 @@ export function LineChart({ series, labels, format, caption, tip, height = 200 }
             return (
               <g key={s.name}>
                 {si === 0 && <path d={`${d}L${last[0]},${H}L${P[0][0]},${H}Z`} fill={`url(#${id}a)`} />}
-                <path d={d} pathLength={s.dashed ? undefined : 1} fill="none" stroke={s.color} strokeWidth={si === 0 ? 2.5 : 2} strokeLinecap="round"
+                <path d={d} pathLength={s.dashed ? undefined : 1} fill="none" className={si === 0 ? "line-glow" : undefined} stroke={s.color} strokeWidth={si === 0 ? 2.5 : 2} strokeLinecap="round"
                   strokeDasharray={s.dashed ? "4 5" : undefined}
                   style={s.dashed ? { opacity: drawn || reduce ? 1 : 0, transition: "opacity .8s .6s" } : { strokeDasharray: 1, strokeDashoffset: drawn || reduce ? 0 : 1, transition: reduce ? "none" : "stroke-dashoffset 1.4s cubic-bezier(.3,.8,.2,1) .2s" }} />
                 <circle cx={last[0]} cy={last[1]} r={4} fill={s.color} className="stroke-card" strokeWidth={2} />
@@ -381,7 +381,7 @@ export function BarChart({ labels, titles, values, budget, color = "var(--primar
               <g key={labels[i]} onPointerEnter={(e) => { const r = (e.currentTarget as SVGGElement).ownerSVGElement!.getBoundingClientRect(); show(i, r.left + cx, r.top + Y(v)) }} onPointerLeave={() => { setHover(null); tip.current?.hide() }}>
                 <rect x={cx - slot / 2} y={0} width={slot} height={H} fill="transparent" />
                 <rect x={cx - bw / 2} width={bw} rx={Math.min(6, bw / 3)} y={Y(v)} height={h}
-                  fill={over ? "var(--rojo)" : color} opacity={hover === null || hover === i ? 1 : 0.45}
+                  fill={over ? "var(--rojo)" : color} opacity={hover === null || hover === i ? 1 : 0.45} className="line-glow"
                   style={{ transformBox: "fill-box", transformOrigin: "center bottom", transform: drawn || reduce ? "scaleY(1)" : "scaleY(0)", transition: reduce ? "none" : `transform .8s cubic-bezier(.3,.8,.2,1) ${i * 25}ms, opacity .2s` }} />
                 {budget && <line x1={cx - bw / 2 - 5} x2={cx + bw / 2 + 5} y1={Y(budget[i])} y2={Y(budget[i])} stroke="var(--foreground)" strokeWidth={2} strokeDasharray="4 3" strokeLinecap="round" />}
                 {(i % every === 0 || i === n - 1) && <text x={cx} y={H - 6} textAnchor="middle" fontSize={10} className="fill-muted-foreground">{labels[i]}</text>}

@@ -10,7 +10,7 @@ import { BentoCard, LineChart, Segmented, type TipRef } from "./charts"
 import { formatInput, parseAmount, type Fmt } from "@/lib/money"
 import { cn } from "@/lib/utils"
 
-const COLORS: Record<BucketId, string> = { colchon: "#0e7c66", deudas: "#d6453d", metas: "#f2b84b", largo: "#3d6fd6" }
+const COLORS: Record<BucketId, string> = { colchon: "#1fb37a", deudas: "#ff5d5d", metas: "#f2c14e", largo: "#3d6fd6" }
 
 const STAGE: Record<F.SurplusPlan["stage"], { label: string; step: number }> = {
   sin_margen: { label: "Prioridad: generar excedente", step: 0 },

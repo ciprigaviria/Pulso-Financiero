@@ -192,7 +192,7 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
         <div className="flex gap-1 py-1.5">
           {TABS.map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)} aria-current={tab === t.id ? "page" : undefined}
-              className={cn("flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors", tab === t.id ? "bg-[#0f1a17] text-white" : "text-ink-2 hover:bg-muted")}>
+              className={cn("flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors", tab === t.id ? "bg-primary text-primary-foreground shadow-[0_0_18px_-4px_var(--glow)]" : "text-ink-2 hover:bg-muted")}>
               <t.icon className="size-4" />{t.label}
             </button>
           ))}
@@ -216,7 +216,7 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
       {tab === "datos" && <Datos perfil={perfil} update={update} fmt={fmt} />}
 
       {(dirty || saveMsg) && (
-        <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-[min(560px,calc(100%-2rem))] items-center justify-between gap-3 rounded-2xl border bg-[#0f1a17] px-4 py-3 text-sm text-white shadow-2xl">
+        <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-[min(560px,calc(100%-2rem))] items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-popover px-4 py-3 text-sm text-foreground shadow-[0_20px_60px_-20px_var(--glow)]">
           <span>{saveMsg || "Tienes cambios sin guardar."}</span>
           {dirty && <Button size="sm" variant="white" className="rounded-lg" onClick={save}><Save /> Guardar</Button>}
         </div>
@@ -275,7 +275,7 @@ function Resumen({ s, movs, mes, today, hist, presupuestos, budget, fixed, tips,
                 <span><b className="block">{p.nombre}</b><span className="text-xs text-muted-foreground">{catName(p.categoria)} · día {p.dia}</span></span>
                 <span className="flex items-center gap-3">
                   {p.pagado ? <span className="rounded-full bg-verde/15 px-2 py-0.5 text-xs font-semibold text-verde">Registrado</span>
-                    : <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", (p.diasParaCobro ?? 9) <= 3 ? "bg-amarillo/25 text-[#8a6410]" : "bg-muted text-muted-foreground")}>{p.diasParaCobro === 0 ? "hoy" : `en ${p.diasParaCobro} días`}</span>}
+                    : <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", (p.diasParaCobro ?? 9) <= 3 ? "bg-amarillo/15 text-amarillo" : "bg-muted text-muted-foreground")}>{p.diasParaCobro === 0 ? "hoy" : `en ${p.diasParaCobro} días`}</span>}
                   <b className="font-num">{fmt.full(p.monto)}</b>
                 </span>
               </li>

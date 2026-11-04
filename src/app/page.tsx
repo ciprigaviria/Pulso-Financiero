@@ -1,10 +1,9 @@
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Mail } from "lucide-react"
 import { SiteHeader } from "@/components/site/site-header"
 import { SiteFooter } from "@/components/site/site-footer"
 import { Hero } from "@/components/home/hero"
 import { Personas } from "@/components/home/personas"
-import { BetaForm } from "@/components/home/beta-form"
 import { AccessSteps } from "@/components/home/access-steps"
 import { Hub } from "@/components/home/hub"
 import { FeatureCards } from "@/components/home/feature-cards"
@@ -112,12 +111,26 @@ export default function Home() {
 
         <Pricing />
 
-        <section className="mx-auto max-w-6xl px-5 pb-16">
-          <div className="rounded-[28px] bg-[#0f1a17] px-6 py-12 text-[#eef3f1] md:px-12">
-            <p className="text-sm font-semibold text-brand-bright">Estamos en beta</p>
-            <h2 className="mt-2 max-w-2xl text-3xl font-extrabold tracking-tight text-white md:text-4xl">Únete a la beta: Premium sin costo a cambio de tu opinión</h2>
-            <p className="mt-3 max-w-2xl text-[#b4c0bb]">Buscamos a las primeras personas que lo usen en serio durante un mes. Te damos {config.premiumName} completo, con el asistente de WhatsApp, y nos cuentas qué mejorar.</p>
-            <BetaForm />
+        <section id="ayuda" className="mx-auto max-w-6xl scroll-mt-20 px-5 pb-16">
+          <div className="glow-card relative overflow-hidden rounded-[28px] border bg-card px-6 py-12 md:px-12">
+            <div aria-hidden="true" className="bg-guilloche pointer-events-none absolute inset-0" />
+            <div className="relative grid gap-8 md:grid-cols-[1.15fr_.85fr] md:items-center">
+              <div>
+                <p className="text-sm font-semibold text-primary">Servicio al cliente</p>
+                <h2 className="mt-2 max-w-xl text-3xl font-extrabold tracking-tight md:text-4xl">¿Tienes una duda o un problema con tu cuenta?</h2>
+                <p className="mt-3 max-w-xl text-ink-2">Escríbenos y te ayudamos con tu suscripción, la activación de tu WhatsApp, tu tablero o cualquier cobro. Te responde una persona, no un robot.</p>
+              </div>
+              <div className="grid gap-3">
+                <a href={`mailto:${config.contactEmail}`} className="glow-card group flex items-center gap-4 rounded-2xl border bg-background/60 px-5 py-4 transition-colors hover:border-primary/60">
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary shadow-[0_0_18px_-6px_var(--glow)]"><Mail className="size-5" /></span>
+                  <span className="min-w-0">
+                    <span className="block text-xs text-muted-foreground">Escríbenos a</span>
+                    <b className="block truncate text-base sm:text-lg">{config.contactEmail}</b>
+                  </span>
+                </a>
+                <p className="text-xs text-muted-foreground">Para cancelar o cambiar de plan, usa el enlace de administración que llega en el correo de compra. Si no lo encuentras, escríbenos.</p>
+              </div>
+            </div>
           </div>
         </section>
 

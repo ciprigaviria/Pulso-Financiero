@@ -23,7 +23,7 @@ function Frame({ icon: Icon, title, badge, badgeTone = "muted", children }: { ic
     <div className="h-[300px] overflow-hidden rounded-2xl border bg-card p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <span className="flex items-center gap-2 text-sm font-bold"><span className="grid size-7 place-items-center rounded-lg bg-muted"><Icon className="size-4" /></span>{title}</span>
-        {badge && <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", badgeTone === "warn" ? "bg-amarillo/20 text-[#8a6410]" : "bg-muted text-muted-foreground")}>{badge}</span>}
+        {badge && <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", badgeTone === "warn" ? "bg-amarillo/15 text-amarillo" : "bg-muted text-muted-foreground")}>{badge}</span>}
       </div>
       {children}
     </div>
@@ -48,8 +48,8 @@ export function FeatureCards() {
             <div key={String(n)} className="mb-2 flex items-center justify-between rounded-xl border px-3 py-2">
               <div>
                 <div className="text-sm font-semibold">{n}</div>
-                <div className="text-[11px] text-muted-foreground">Mensual · {tag ? <span className="rounded bg-amarillo/25 px-1 text-[#8a6410]">{d}</span> : d}</div>
-                {tag && <div className="mt-1.5 flex gap-1.5"><span className="rounded-md bg-[#d9fdd3] px-2 py-0.5 text-[11px] font-semibold text-[#0b6b3a]">Pagado</span><span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold">Revisar</span></div>}
+                <div className="text-[11px] text-muted-foreground">Mensual · {tag ? <span className="rounded bg-amarillo/15 px-1 text-amarillo">{d}</span> : d}</div>
+                {tag && <div className="mt-1.5 flex gap-1.5"><span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">Pagado</span><span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold">Revisar</span></div>}
               </div>
               <span className="font-num text-sm font-bold text-rojo">{fmt.full(m(Number(v)))}</span>
             </div>
@@ -61,7 +61,7 @@ export function FeatureCards() {
       key: "presupuesto", title: "Presupuestos que avisan antes", text: "Defines cuánto gastar por categoría y el asistente te escribe cuando vas en el 80 %, no cuando ya te pasaste.",
       ui: (
         <Frame icon={Wallet} title="Presupuesto del mes" badge="cierra en 9 días">
-          {[["Mercado", 160, 260, "#14b88f"], ["Restaurantes", 104, 120, "#f2b84b"], ["Transporte", 48, 80, "#14b88f"], ["Salidas", 92, 85, "#d6453d"]].map(([n, used, total, c], i) => (
+          {[["Mercado", 160, 260, "#2ee59d"], ["Restaurantes", 104, 120, "#f2c14e"], ["Transporte", 48, 80, "#2ee59d"], ["Salidas", 92, 85, "#ff5d5d"]].map(([n, used, total, c], i) => (
             <div key={String(n)} className="mb-3">
               <div className="mb-1 flex justify-between text-xs"><span className="font-semibold">{n}</span><span className="font-num text-muted-foreground"><b className={Number(used) > Number(total) ? "text-rojo" : "text-foreground"}>{fmt.full(m(Number(used)))}</b> de {fmt.full(m(Number(total)))}</span></div>
               <Bar pct={(Number(used) / Number(total)) * 100} color={String(c)} delay={i * 0.12} />
@@ -78,7 +78,7 @@ export function FeatureCards() {
           {[["Fondo de emergencia", 40, 1200, "sin fecha"], ["Viaje de fin de año", 69, 900, "para diciembre"], ["Computador nuevo", 85, 700, "para marzo"]].map(([n, p, goal, when], i) => (
             <div key={String(n)} className="mb-2.5 rounded-xl border px-3 py-2.5">
               <div className="mb-1.5 flex justify-between text-sm"><span className="font-semibold">{n}</span><span className="font-num text-xs font-bold text-primary">{p}%</span></div>
-              <Bar pct={Number(p)} color="#14b88f" delay={i * 0.15} />
+              <Bar pct={Number(p)} color="#2ee59d" delay={i * 0.15} />
               <div className="mt-1 text-[11px] text-muted-foreground"><span className="font-num">{fmt.full(m((Number(goal) * Number(p)) / 100))}</span> de <span className="font-num">{fmt.full(m(Number(goal)))}</span> · {when}</div>
             </div>
           ))}

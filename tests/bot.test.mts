@@ -9,6 +9,46 @@ import { COUNTRIES } from '../src/lib/money.ts';
 const src = readFileSync(new URL('../apps-script-bot/Bot.gs', import.meta.url), 'utf8');
 const TODAY = '2026-11-04';
 
+const blob = (data: string): any => { const b: any = { data, name: '', type: '' }; b.setName = (n: string) => { b.name = n; return b; }; b.setContentType = (t: string) => { b.type = t; return b; }; return b; };
+
+/** Simula SlidesApp y DriveApp: guarda los textos y figuras de cada hoja para revisar el dibujo. */
+function slidesMock(env: any) {
+  const state: any = { decks: [] as any[], trashed: [] as string[] };
+  const el = (kind: string, page: any, extra: any = {}) => {
+    const fill = { setSolidFill: (c: string, a?: number) => { e.fill = c; e.alpha = a; return fill; }, setTransparent: () => { e.fill = null; } };
+    const line = { getLineFill: () => fill, setWeight: (w: number) => { e.weight = w; return line; }, setTransparent: () => line, setDashStyle: () => { e.dash = true; } };
+    const style: any = { setFontFamily: () => style, setFontSize: (n: number) => { e.size = n; return style; }, setForegroundColor: (c: string) => { e.color = c; return style; }, setBold: (b: boolean) => { e.bold = b; return style; } };
+    const para: any = { setSpaceAbove: () => para, setSpaceBelow: () => para, setLineSpacing: () => para, setParagraphAlignment: (a: string) => { e.align = a; return para; } };
+    const e: any = { kind, ...extra, getFill: () => fill, getBorder: () => line, getLineFill: () => fill, setWeight: line.setWeight, setDashStyle: line.setDashStyle,
+      getText: () => ({ getTextStyle: () => style, getParagraphStyle: () => para }), setContentAlignment: () => e, remove: () => { page.els.splice(page.els.indexOf(e), 1); } };
+    page.els.push(e); return e;
+  };
+  const slide = (id: string) => {
+    const page: any = { id, els: [], bg: null };
+    Object.assign(page, {
+      getObjectId: () => id, getPageElements: () => page.els.slice(), getBackground: () => ({ setSolidFill: (c: string) => { page.bg = c; } }),
+      insertShape: (t: string, x: number, y: number, w: number, h: number) => { if ([x, y, w, h].some((v) => !Number.isFinite(v))) throw new Error('figura sin medidas'); return el('shape', page, { t, x, y, w, h }); },
+      insertTextBox: (text: string, x: number, y: number, w: number, h: number) => { if ([x, y, w, h].some((v) => !Number.isFinite(v))) throw new Error('texto sin medidas'); return el('text', page, { text, x, y, w, h }); },
+      insertLine: (_c: string, x1: number, y1: number, x2: number, y2: number) => { if ([x1, y1, x2, y2].some((v) => !Number.isFinite(v))) throw new Error('línea sin medidas'); return el('line', page, { x1, y1, x2, y2 }); },
+    });
+    return page;
+  };
+  env.SlidesApp = {
+    create: (name: string) => {
+      if (env.slidesFail) throw new Error('Slides no disponible');
+      const deck: any = { id: 'deck' + (state.decks.length + 1), name, slides: [slide('p1')], closed: false };
+      deck.slides[0].els.push({ kind: 'placeholder', remove() { deck.slides[0].els.shift(); } });
+      state.decks.push(deck);
+      return { getId: () => deck.id, getSlides: () => deck.slides, appendSlide: () => { const s = slide('p' + (deck.slides.length + 1)); deck.slides.push(s); return s; }, saveAndClose: () => { deck.closed = true; } };
+    },
+    ShapeType: { RECTANGLE: 'RECTANGLE', ROUND_RECTANGLE: 'ROUND_RECTANGLE', ELLIPSE: 'ELLIPSE' }, LineCategory: { STRAIGHT: 'STRAIGHT' }, DashStyle: { DASH: 'DASH' },
+    ParagraphAlignment: { START: 'START', CENTER: 'CENTER', END: 'END' }, ContentAlignment: { TOP: 'TOP', MIDDLE: 'MIDDLE' }, PredefinedLayout: { BLANK: 'BLANK' },
+  };
+  env.DriveApp = { getFileById: (id: string) => ({ getAs: (t: string) => { assert.equal(t, 'application/pdf'); return blob('pdf:' + id); }, setTrashed: (v: boolean) => { if (v) state.trashed.push(id); } }) };
+  env.ScriptApp = { getOAuthToken: () => 'token-google' };
+  return state;
+}
+
 function makeEnv(extraProps: Record<string, string> = {}) {
   const sheets: Record<string, any[][]> = {};
   const sent: { to: string; body: string }[] = [];
@@ -28,6 +68,8 @@ function makeEnv(extraProps: Record<string, string> = {}) {
   });
   const env: any = {
     llm: null as null | ((body: any) => any),
+    uploads: [] as any[],
+    mediaFail: false,
     media: {} as Record<string, { mime: string; size: number }>,
     pagos: (_k: string): any => ({ ok: false, estado: 'invalida' }),
     hour: '10',
@@ -48,9 +90,18 @@ function makeEnv(extraProps: Record<string, string> = {}) {
         if (url.startsWith('https://graph.facebook.com/') && url.endsWith('/messages')) {
           assert.ok(url.includes('/v26.0/111/messages')); assert.equal(o.headers.Authorization, 'Bearer wa');
           const p = JSON.parse(o.payload);
-          sent.push({ to: p.to, body: p.type === 'template' ? 'PLANTILLA ' + p.template.name + ': ' + p.template.components[0].parameters.map((x: any) => x.text).join(' | ') : p.text.body });
+          sent.push({ to: p.to, body: p.type === 'template' ? 'PLANTILLA ' + p.template.name + ': ' + p.template.components[0].parameters.map((x: any) => x.text).join(' | ') : p.type === 'image' ? 'IMAGEN ' + p.image.id + ': ' + p.image.caption : p.type === 'document' ? 'DOCUMENTO ' + p.document.id + ' ' + p.document.filename + ': ' + p.document.caption : p.text.body });
           return { getResponseCode: () => 200, getContentText: () => '{}' };
         }
+        if (url === 'https://graph.facebook.com/v26.0/111/media') {
+          assert.equal(o.headers.Authorization, 'Bearer wa'); assert.equal(o.payload.messaging_product, 'whatsapp');
+          if (env.mediaFail) return { getResponseCode: () => 400, getContentText: () => '{"error":{}}' };
+          env.uploads.push({ type: o.payload.type, blob: o.payload.file });
+          return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ id: 'up' + env.uploads.length }) };
+        }
+        const thumb = url.match(/^https:\/\/slides\.googleapis\.com\/v1\/presentations\/(\w+)\/pages\/(\w+)\/thumbnail\?thumbnailProperties\.thumbnailSize=LARGE&thumbnailProperties\.mimeType=PNG$/);
+        if (thumb) { assert.equal(o.headers.Authorization, 'Bearer token-google'); return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ contentUrl: 'https://thumb.test/' + thumb[1] + '/' + thumb[2] }) }; }
+        if (url.startsWith('https://thumb.test/')) return { getResponseCode: () => 200, getBlob: () => blob('png:' + url) };
         const media = url.match(/^https:\/\/graph\.facebook\.com\/v26\.0\/(\d+)$/);
         if (media) {
           assert.equal(o.headers.Authorization, 'Bearer wa');
@@ -79,7 +130,7 @@ function makeEnv(extraProps: Record<string, string> = {}) {
     },
   };
   vm.createContext(env);
-  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, monthlyHistory_, weekStats_, monthBudget_, weeklyParams_, fillTemplate_, WEEKLY_TEMPLATE, tareasProgramadas, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
+  vm.runInContext(src + '\n;globalThis.__bot = { doGet, cardData_, doPost, setup, cleanPerfil_, monthlyHistory_, weekStats_, monthBudget_, weeklyParams_, fillTemplate_, WEEKLY_TEMPLATE, tareasProgramadas, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
   const bot = env.__bot;
   bot.setup();
   let n = 0;
@@ -138,7 +189,13 @@ if (dumpIdx > -1) {
     const pres = Object.fromEntries(BOT_CATEGORIES.slice(0, 12).filter(() => rand(3) === 0).map((c) => [c.id, (rand(5e5) + 1) / 100]));
     return { movs, today, pres, week: JSON.parse(JSON.stringify(bot.weekStats_(movs, today))), budget: JSON.parse(JSON.stringify(bot.monthBudget_(movs, { presupuestos: pres }, today))) };
   });
-  await new Promise((done) => process.stdout.write(JSON.stringify({ amountsCases, summaryCases, weekCases }), done));
+  const cardCases = Array.from({ length: 300 }, () => {
+    const movs = Array.from({ length: rand(50) }, (_, i) => ({ id: 'c' + i, fecha: day(rand(80)), tipo: rand(5) === 0 ? 'ingreso' : 'gasto', monto: (rand(3e6) + 1) / 100, categoria: BOT_CATEGORIES[rand(12)].id, descripcion: 'd' + i }));
+    const today = day(20 + rand(60));
+    const pres = Object.fromEntries(BOT_CATEGORIES.slice(0, 12).filter(() => rand(3) === 0).map((c) => [c.id, rand(4) === 0 ? 0 : (rand(4e5) + 1) / 100]));
+    return { movs, today, pres, card: JSON.parse(JSON.stringify(bot.cardData_(movs, { presupuestos: pres }, today))) };
+  });
+  await new Promise((done) => process.stdout.write(JSON.stringify({ amountsCases, summaryCases, weekCases, cardCases }), done));
   process.exit(0);
 }
 
@@ -544,4 +601,68 @@ const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets,
   status = 503; assert.equal(check('KEY-CAIDO-001').estado, 'error', 'si Lemon Squeezy falla, el bot conserva el acceso');
   assert.equal(P.activationLink_(P.cfg_(), 'AB12-CD34'), 'https://wa.me/573001234567?text=activar%20AB12-CD34');
   console.log('✓ Pagos: estado activa/vencida/invalida para el bot, error separado y botón de activación por WhatsApp');
+}
+
+// ---- 14. Tablero en WhatsApp: imagen + PDF con el mismo estilo del sitio ----
+{
+  const { say, sheets, bot, env } = makeEnv();
+  const slides = slidesMock(env);
+  const T = '573002020202';
+  say(T, 'hola');
+  let x = say(T, 'tablero');
+  assert.equal(x.all.length, 1); assert.ok(x.replies[0].includes('Aún no tienes movimientos') && x.replies[0].includes('https://pulso.test/tablero/?t='), x.replies[0]);
+  assert.equal(slides.decks.length, 0, 'sin movimientos no se arma la imagen');
+
+  const add = (fecha: string, tipo: string, monto: number, categoria: string, desc = '') => sheets.Movimientos.push(['m' + fecha + monto, T, fecha, tipo, monto, 'COP', categoria, desc, '', 'x' + fecha + monto, '', 'prueba']);
+  add('2026-10-30', 'gasto', 999000, 'mercado', 'Mes anterior');
+  add('2026-11-01', 'ingreso', 3000000, 'salario', 'Salario'); add('2026-11-01', 'gasto', 1200000, 'vivienda', 'Arriendo');
+  add('2026-11-02', 'gasto', 250000, 'comida', 'Domicilios'); add('2026-11-03', 'gasto', 90000, 'transporte', 'Gasolina');
+  const token = getU(sheets, T, 'token');
+  bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t: token, perfil: { presupuestos: { comida: 200000, transporte: 100000 } } }) } });
+
+  x = say(T, 'tablero');
+  assert.equal(x.all.length, 2, x.replies.join(' || '));
+  assert.ok(x.replies[0].startsWith('IMAGEN up1: Tu tablero · noviembre 2026') && x.replies[0].includes('https://pulso.test/tablero/?t=' + token), x.replies[0]);
+  assert.ok(x.replies[1].startsWith('DOCUMENTO up2 Pulso - Noviembre 2026.pdf'), x.replies[1]);
+  assert.deepEqual(env.uploads.map((u: any) => [u.type, u.blob.type]), [['image/png', 'image/png'], ['application/pdf', 'application/pdf']]);
+  assert.ok(env.uploads[0].blob.data.startsWith('png:https://thumb.test/deck1/p1'));
+  const deck = slides.decks[0];
+  assert.ok(deck.closed && slides.trashed.includes('deck1'), 'la presentación temporal se cierra y se borra');
+  assert.equal(deck.slides.length, 2);
+  const texts = (i: number) => deck.slides[i].els.filter((e: any) => e.kind === 'text').map((e: any) => e.text);
+  const t1 = texts(0);
+  for (const want of ['$ 3.000.000', '$ 1.540.000', '$ 1.460.000', 'Tasa de ahorro 49 %', '50 %', '1 de 2 categorías dentro', 'Vivienda', '125 % de $ 200.000 · te pasaste', '90 % de $ 100.000', '78 % del gasto'])
+    assert.ok(t1.includes(want), 'falta en la imagen: ' + want + ' → ' + t1.join(' | '));
+  assert.ok(!t1.some((t: string) => t.includes('999.000')), 'solo el mes en curso');
+  assert.equal(deck.slides[0].bg, '#050806');
+  const lines = deck.slides[0].els.filter((e: any) => e.kind === 'line' && e.fill === '#2ee59d' && e.weight === 2);
+  assert.equal(lines.length, 3, 'línea del gasto acumulado: días 1 a 4');
+  const t2 = texts(1);
+  assert.ok(t2.includes('1 nov\n1 nov\n2 nov\n3 nov'.split('\n').reverse().join('\n')) || t2.some((t: string) => t.startsWith('3 nov\n2 nov\n1 nov')), t2.join(' | '));
+  assert.ok(t2.some((t: string) => t.includes('+$ 3.000.000') && t.includes('−$ 1.200.000')) && t2.some((t: string) => t.includes('Ingreso')));
+  assert.ok(t2.includes('Estos son todos tus movimientos del mes.'));
+
+  // Límite diario de imágenes, error al subir y opción de solo enlace
+  for (let i = 0; i < 5; i++) say(T, 'tablero');
+  x = say(T, 'tablero'); assert.equal(x.all.length, 1); assert.ok(x.replies[0].includes('Hoy ya te envié la imagen 6 veces'), x.replies[0]);
+  const { say: say2, sheets: sh2, env: env2 } = makeEnv({ MAX_TABLEROS_DIA: '50' });
+  const s2 = slidesMock(env2);
+  say2(T, 'hola'); sh2.Movimientos.push(['m1', T, '2026-11-02', 'gasto', 5000, 'COP', 'comida', '', '', 'x1', '', 'prueba']);
+  env2.mediaFail = true;
+  x = say2(T, 'tablero'); assert.equal(x.all.length, 1); assert.ok(x.replies[0].startsWith('Tu tablero:\nhttps://pulso.test/tablero/?t='), x.replies[0]);
+  assert.ok(s2.trashed.includes('deck1'), 'se borra aunque falle el envío');
+  assert.ok(sh2.Errores && sh2.Errores.length > 1, 'el error queda registrado');
+  env2.mediaFail = false; env2.slidesFail = true;
+  x = say2(T, 'tablero'); assert.ok(x.replies[0].startsWith('Tu tablero:\n'));
+  const { say: say3, sheets: sh3, env: env3 } = makeEnv({ TABLERO_IMAGEN: 'no' });
+  const s3 = slidesMock(env3);
+  say3(T, 'hola'); sh3.Movimientos.push(['m1', T, '2026-11-02', 'gasto', 5000, 'COP', 'comida', '', '', 'x1', '', 'prueba']);
+  x = say3(T, 'tablero'); assert.ok(x.replies[0].startsWith('Tu tablero:\n')); assert.equal(s3.decks.length, 0);
+
+  // Mes con muchos movimientos y categorías: la hoja 1 muestra 6 y la 2 hasta 22 filas
+  const many = Array.from({ length: 30 }, (_, i) => ({ fecha: '2026-11-0' + (1 + (i % 4)), tipo: 'gasto', monto: 1000 + i, categoria: ['vivienda', 'mercado', 'servicios', 'transporte', 'salud', 'educacion', 'conectividad', 'comida'][i % 8], descripcion: 'g' + i }));
+  const d = bot.cardData_(many, { presupuestos: {} }, '2026-11-04');
+  assert.equal(d.ultimos.length, 22); assert.equal(d.restantes, 8); assert.equal(d.cats.length, 8); assert.equal(d.cumplimiento, null);
+  assert.equal(d.ultimos[0].fecha, '2026-11-04'); assert.equal(d.ultimos[0].descripcion, 'g27', 'el más reciente primero');
+  console.log('✓ Tablero en WhatsApp: imagen y PDF del mes, mismo estilo del sitio, enlace en el mensaje, archivo temporal borrado, límite diario y respaldo con enlace');
 }

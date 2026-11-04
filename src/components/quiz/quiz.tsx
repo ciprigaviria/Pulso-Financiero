@@ -372,10 +372,10 @@ function ResultView({ data, onRestart }: { data: Saved; onRestart: () => void })
 function Offer({ data, email }: { data: Saved; email: string }) {
   return (
     <TimelineContent className="mt-12 overflow-hidden rounded-3xl shadow-xl">
-      <div id="oferta" className="bg-[#0f1a17] px-6 py-7 text-[#eef3f1] md:px-8">
-        {trialText && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-[#062019]">{trialText}</span>}
+      <div id="oferta" className="glow-card border-t bg-card px-6 py-7 text-foreground md:px-8">
+        {trialText && <span className="inline-block rounded-full bg-brand-bright px-3 py-1 text-xs font-extrabold uppercase tracking-wider text-primary-foreground">{trialText}</span>}
         <h2 className="mb-2 mt-3 text-2xl font-extrabold text-white md:text-3xl">Convierte este diagnóstico en un plan que se cumple</h2>
-        <p className="max-w-[60ch] text-[#b4c0bb]">Con {config.premiumName} escribes tus gastos por WhatsApp y tu tablero te muestra cada día cuánto te queda, cómo vas con tu presupuesto y qué hacer con tu dinero.</p>
+        <p className="max-w-[60ch] text-ink-2">Con {config.premiumName} escribes tus gastos por WhatsApp y tu tablero te muestra cada día cuánto te queda, cómo vas con tu presupuesto y qué hacer con tu dinero.</p>
       </div>
       <div className="grid gap-8 rounded-b-3xl border-2 border-t-0 border-primary bg-card px-6 py-7 md:grid-cols-[1.1fr_.9fr] md:px-8">
         <ul className="space-y-3">

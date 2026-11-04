@@ -8,10 +8,10 @@ import { BrandMark } from "@/components/site/brand-mark"
 
 const NODES: { icon: LucideIcon; label: string; color: string }[] = [
   { icon: MessageCircle, label: "WhatsApp", color: "#25d366" },
-  { icon: Wallet, label: "Presupuesto", color: "#14b88f" },
-  { icon: Target, label: "Metas", color: "#f2b84b" },
-  { icon: CalendarCheck, label: "Deudas", color: "#d6453d" },
-  { icon: PiggyBank, label: "Ahorro", color: "#0e7c66" },
+  { icon: Wallet, label: "Presupuesto", color: "#2ee59d" },
+  { icon: Target, label: "Metas", color: "#f2c14e" },
+  { icon: CalendarCheck, label: "Deudas", color: "#ff5d5d" },
+  { icon: PiggyBank, label: "Ahorro", color: "#1fb37a" },
   { icon: TrendingUp, label: "Inversión", color: "#5b8def" },
   { icon: FileText, label: "Informe", color: "#e0742a" },
   { icon: Gauge, label: "Diagnóstico", color: "#8fb2f5" },
@@ -35,7 +35,7 @@ export function Hub() {
       </svg>
       <motion.div initial={{ scale: 0.6, opacity: 0 }} whileInView={{ scale: 1, opacity: 1 }} viewport={{ once: true }} transition={{ type: "spring", stiffness: 180, damping: 14 }}
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-        <div className="relative grid size-24 place-items-center rounded-[1.6rem] bg-[#0f1a17] shadow-[0_0_0_10px_rgba(20,184,143,.12),0_0_60px_rgba(20,184,143,.35)]">
+        <div className="relative grid size-24 place-items-center rounded-[1.6rem] bg-[#0a110e] shadow-[0_0_0_10px_rgba(46,229,157,.12),0_0_60px_rgba(46,229,157,.35)]">
           <span className="absolute inset-0 animate-ping rounded-[1.6rem] bg-primary/20 [animation-duration:2.6s]" aria-hidden="true" />
           <BrandMark size={56} />
         </div>

@@ -88,6 +88,35 @@ for c in data['weekCases']:
     ale = sorted(k for k in ids if round(spent.get(k, 0), 2) <= c['pres'][k] and round(spent.get(k, 0), 2) / c['pres'][k] >= 0.8)
     b = c['budget']
     if b['definido'] != bool(ids) or sorted(b['excedidas']) != exc or sorted(b['alerta']) != ale: bad += 1; print('presupuesto', c['today'], exc, ale, b)
-print(f"Comparados {len(data['amountsCases'])} textos con montos ({mult} con mil, k, lucas, palos o millones) y {len(data['summaryCases'])} meses de movimientos (bot y sitio) y {len(data['weekCases'])} resúmenes semanales; diferencias: {bad}")
+def card(movs, pres, today):
+    mes = today[:7]; mm = [m for m in movs if m['fecha'][:7] == mes]
+    s = summarize(mm); r2 = lambda x: round(x * 100) / 100
+    ids = sorted(k for k, v in pres.items() if v > 0)
+    cats = []
+    for k, monto in s['porCategoria'].items():
+        p = pres.get(k, 0) if pres.get(k, 0) > 0 else 0; uso = monto / p if p else None
+        cats.append({'id': k, 'monto': monto, 'share': monto / s['gastos'] if s['gastos'] > 0 else 0, 'presupuesto': p, 'uso': uso,
+                     'estado': 'sin' if not p else 'excedido' if uso > 1 else 'alerta' if uso >= 0.8 else 'ok'})
+    cats.sort(key=lambda c: (-c['monto'], c['id']))
+    dentro = sum(1 for k in ids if s['porCategoria'].get(k, 0) <= pres[k])
+    dias = int(today[8:10]); diario = [0.0] * dias
+    for m in mm:
+        d = int(m['fecha'][8:10])
+        if m['tipo'] != 'ingreso' and 1 <= d <= dias: diario[d - 1] += m['monto']
+    acc, acum = 0.0, []
+    for v in diario: acc += v; acum.append(r2(acc))
+    order = [m for _, m in sorted(enumerate(mm), key=lambda x: (x[1]['fecha'], x[0]), reverse=True)]
+    return {'ingresos': s['ingresos'], 'gastos': s['gastos'], 'excedente': s['excedente'], 'n': s['n'], 'cats': cats, 'presupuestadas': len(ids), 'dentro': dentro,
+            'cumplimiento': dentro / len(ids) if ids else None, 'presupuestoTotal': r2(sum(pres[k] for k in ids)), 'acumulado': acum,
+            'ultimos': [m['id'] for m in order[:22]], 'restantes': max(0, len(order) - 22)}
+close = lambda a, b: (a is None and b is None) or (a is not None and b is not None and abs(a - b) < 1e-6)
+for c in data['cardCases']:
+    py, js = card(c['movs'], c['pres'], c['today']), c['card']
+    ok = all(close(py[k], js[k]) for k in ('ingresos', 'gastos', 'excedente', 'n', 'presupuestadas', 'dentro', 'cumplimiento', 'presupuestoTotal', 'restantes'))
+    ok = ok and len(py['acumulado']) == len(js['acumulado']) and all(close(a, b) for a, b in zip(py['acumulado'], js['acumulado']))
+    ok = ok and [m['id'] for m in js['ultimos']] == py['ultimos'] and len(py['cats']) == len(js['cats'])
+    ok = ok and all(a['id'] == b['id'] and a['estado'] == b['estado'] and all(close(a[k], b[k]) for k in ('monto', 'share', 'presupuesto', 'uso')) for a, b in zip(py['cats'], js['cats']))
+    if not ok: bad += 1; print('tarjeta', c['today'], py, js)
+print(f"Comparados {len(data['amountsCases'])} textos con montos ({mult} con mil, k, lucas, palos o millones) y {len(data['summaryCases'])} meses de movimientos (bot y sitio), {len(data['weekCases'])} resúmenes semanales y {len(data['cardCases'])} tableros en imagen; diferencias: {bad}")
 if bad: sys.exit(1)
 print('✓ Python, el bot y el sitio coinciden')

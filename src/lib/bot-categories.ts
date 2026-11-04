@@ -2,21 +2,21 @@
 export type BotCategory = { id: string; tipo: "gasto" | "ingreso"; name: string; color: string }
 
 export const BOT_CATEGORIES: BotCategory[] = [
-  { id: "vivienda", tipo: "gasto", name: "Vivienda", color: "#0e7c66" },
+  { id: "vivienda", tipo: "gasto", name: "Vivienda", color: "#1fb37a" },
   { id: "mercado", tipo: "gasto", name: "Mercado", color: "#14a37f" },
-  { id: "servicios", tipo: "gasto", name: "Servicios básicos", color: "#3fbf9b" },
-  { id: "transporte", tipo: "gasto", name: "Transporte", color: "#6fd3b4" },
+  { id: "servicios", tipo: "gasto", name: "Servicios básicos", color: "#46e8a8" },
+  { id: "transporte", tipo: "gasto", name: "Transporte", color: "#5cf2b8" },
   { id: "salud", tipo: "gasto", name: "Salud y seguros", color: "#2f6fd6" },
   { id: "educacion", tipo: "gasto", name: "Educación", color: "#5b8def" },
   { id: "conectividad", tipo: "gasto", name: "Celular e internet", color: "#8fb2f5" },
-  { id: "comida", tipo: "gasto", name: "Restaurantes y domicilios", color: "#f2b84b" },
+  { id: "comida", tipo: "gasto", name: "Restaurantes y domicilios", color: "#f2c14e" },
   { id: "compras", tipo: "gasto", name: "Ropa y compras", color: "#e0742a" },
   { id: "ocio", tipo: "gasto", name: "Entretenimiento y suscripciones", color: "#f39a6b" },
-  { id: "deudas", tipo: "gasto", name: "Pago de deudas", color: "#d6453d" },
+  { id: "deudas", tipo: "gasto", name: "Pago de deudas", color: "#ff5d5d" },
   { id: "otros", tipo: "gasto", name: "Otros gastos", color: "#9aa5a1" },
-  { id: "salario", tipo: "ingreso", name: "Salario", color: "#0e7c66" },
+  { id: "salario", tipo: "ingreso", name: "Salario", color: "#1fb37a" },
   { id: "independiente", tipo: "ingreso", name: "Honorarios y ventas", color: "#14a37f" },
-  { id: "otros_ingresos", tipo: "ingreso", name: "Otros ingresos", color: "#6fd3b4" },
+  { id: "otros_ingresos", tipo: "ingreso", name: "Otros ingresos", color: "#5cf2b8" },
 ]
 
 export const botCategory = (id: string) => BOT_CATEGORIES.find((c) => c.id === id) || BOT_CATEGORIES.find((c) => c.id === "otros")!

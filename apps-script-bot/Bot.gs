@@ -6,7 +6,7 @@
  *  2. Entiende gastos e ingresos escritos como la gente escribe ("almuerzo 25 mil", "me pagaron 4,5 palos")
  *     con IA (Claude) y, si la IA no está disponible, con reglas propias.
  *  3. Lee fotos de recibos con IA y anota el total.
- *  4. Responde con una confirmación, resúmenes del mes y el enlace personal al tablero.
+ *  4. Responde con una confirmación, resúmenes del mes y, con "tablero", una imagen y un PDF del mes más el enlace personal.
  *  5. Guarda todo en una hoja de cálculo y entrega los movimientos al sitio (GET ?action=tablero).
  *  6. Liga cada número a una suscripción: "activar CÓDIGO" (el correo de bienvenida trae el botón).
  *     Si la suscripción termina, el tablero queda en modo consulta DIAS_CONSULTA días y luego se borran los datos.
@@ -15,7 +15,8 @@
  * Puesta en marcha: ver README.md, sección "Bot de WhatsApp".
  * Propiedades del script: WA_TOKEN, WA_PHONE_NUMBER_ID, RELAY_SECRET, ANTHROPIC_API_KEY,
  * y opcionales SITE_URL, PAGOS_URL (activa el cobro), BETA_NUMEROS, CONTACTO, RENOVAR_URL, DIAS_CONSULTA,
- * WA_PLANTILLA_RESUMEN, WA_PLANTILLA_IDIOMA, RESUMEN_HORA, LLM_MODEL, GRAPH_VERSION, MAX_MENSAJES_DIA, MAX_FOTOS_DIA.
+ * WA_PLANTILLA_RESUMEN, WA_PLANTILLA_IDIOMA, RESUMEN_HORA, LLM_MODEL, GRAPH_VERSION, MAX_MENSAJES_DIA, MAX_FOTOS_DIA,
+ * TABLERO_IMAGEN ("no" para enviar solo el enlace), MAX_TABLEROS_DIA.
  * Ejecuta instalarTareas() una vez para la revisión de suscripciones y el resumen semanal.
  *
  * Las categorías (sección 2) deben coincidir con src/lib/bot-categories.ts; `npm test` lo verifica.
@@ -40,6 +41,8 @@ const BOT_DEFAULTS = {
   WA_PLANTILLA_RESUMEN: '',
   WA_PLANTILLA_IDIOMA: 'es',
   RESUMEN_HORA: '9',
+  TABLERO_IMAGEN: 'si',
+  MAX_TABLEROS_DIA: '6',
   PREMIUM_NAME: 'Pulso Premium'
 };
 
@@ -397,7 +400,7 @@ const HELP = [
   '• *resumen* — cómo vas este mes',
   '• *cuánto llevo en restaurantes*',
   '• *borrar* — elimina lo último que anotaste',
-  '• *tablero* — tu enlace personal con gráficos',
+  '• *tablero* — tu mes en imagen y PDF, con tu enlace personal',
   '• También puedes mandarme la *foto de un recibo*',
   '• *resumen no* — dejar de recibir el resumen de los lunes',
   '• *borrar mis datos* — elimina toda tu información'
@@ -453,7 +456,7 @@ function handleMessage_(m, profileName, c) {
 
   // Suscripción terminada (o número sin suscripción): solo consulta
   if (readOnly) {
-    if (/^(tablero|mi tablero|link|enlace|mi enlace|graficos|grafica)$/.test(t)) { send_(from, 'Tu tablero (modo consulta):\n' + userLink_(user, c), c); return 'enlace (consulta)'; }
+    if (/^(tablero|mi tablero|link|enlace|mi enlace|graficos|grafica)$/.test(t)) return sendDashboard_(user, country, today, c, true);
     if (/^(resumen|balance|como voy|como vamos|mi mes)$/.test(t)) { send_(from, summaryText_(from, country, today, c), c); return 'resumen (consulta)'; }
     noticeOnce_(from, 'consulta', readOnlyText_(user, access, c), c);
     return 'solo consulta';
@@ -482,7 +485,7 @@ function handleMessage_(m, profileName, c) {
   // Comandos directos (sin IA)
   if (/^(hola|buenas|buenos dias|buenas tardes|buenas noches|ayuda|menu|\?|info|como funciona)$/.test(t)) { send_(from, HELP, c); return 'ayuda'; }
   if (/^(resumen|balance|como voy|como vamos|mi mes)$/.test(t)) { send_(from, summaryText_(from, country, today, c), c); return 'resumen'; }
-  if (/^(tablero|mi tablero|link|enlace|mi enlace|graficos|grafica)$/.test(t)) { send_(from, 'Tu tablero de movimientos:\n' + userLink_(user, c), c); return 'enlace'; }
+  if (/^(tablero|mi tablero|link|enlace|mi enlace|graficos|grafica)$/.test(t)) return sendDashboard_(user, country, today, c, false);
   if (/^(nuevo enlace|cambiar enlace|nuevo link)$/.test(t)) {
     const token = newToken_(); updateUser_(from, { token: token }); user.token = token;
     send_(from, 'Listo, tu enlace anterior dejó de funcionar. El nuevo es:\n' + userLink_(user, c), c); return 'nuevo enlace';
@@ -938,6 +941,252 @@ function fmtMoney_(n, country) {
   return (neg ? '-' : '') + body.replace(/\s+/g, ' ').trim();
 }
 
+/* ---------- Tablero en WhatsApp: imagen + PDF (mismo estilo negro y verde del sitio) ---------- */
+
+/**
+ * Cifras de la tarjeta del mes: totales, categorías (con su presupuesto), cumplimiento,
+ * gasto acumulado por día y últimos movimientos. Validado en Python (tests/validate_bot.py).
+ */
+function cardData_(movs, perfil, today) {
+  const mes = today.slice(0, 7);
+  const mm = movs.filter(m => String(m.fecha).slice(0, 7) === mes);
+  const s = summarize_(mm);
+  const pres = (perfil && perfil.presupuestos) || {};
+  const presIds = Object.keys(pres).filter(k => Number(pres[k]) > 0).sort();
+  const cats = Object.keys(s.porCategoria).map(id => {
+    const monto = s.porCategoria[id], p = Number(pres[id]) > 0 ? Number(pres[id]) : 0, uso = p ? monto / p : null;
+    return { id: id, monto: monto, share: s.gastos > 0 ? monto / s.gastos : 0, presupuesto: p, uso: uso,
+      estado: !p ? 'sin' : uso > 1 ? 'excedido' : uso >= BUDGET_WARN ? 'alerta' : 'ok' };
+  }).sort((a, b) => b.monto - a.monto || (a.id < b.id ? -1 : 1));
+  const dentro = presIds.filter(k => (s.porCategoria[k] || 0) <= Number(pres[k])).length;
+  const dias = Number(today.slice(8, 10)), diario = [];
+  for (let i = 0; i < dias; i++) diario.push(0);
+  mm.forEach(m => { const d = Number(String(m.fecha).slice(8, 10)); if (m.tipo !== 'ingreso' && d >= 1 && d <= dias) diario[d - 1] += Number(m.monto) || 0; });
+  let acc = 0;
+  const acumulado = diario.map(v => round2_(acc += v));
+  const ultimos = mm.map((m, i) => ({ m: m, i: i })).sort((a, b) => (a.m.fecha < b.m.fecha ? 1 : a.m.fecha > b.m.fecha ? -1 : b.i - a.i)).map(x => x.m);
+  return {
+    mes: mes, ingresos: s.ingresos, gastos: s.gastos, excedente: s.excedente, tasaAhorro: s.tasaAhorro, n: s.n, cats: cats,
+    presupuestadas: presIds.length, dentro: dentro, cumplimiento: presIds.length ? dentro / presIds.length : null,
+    presupuestoTotal: round2_(presIds.reduce((a, k) => a + Number(pres[k]), 0)),
+    acumulado: acumulado, ultimos: ultimos.slice(0, MAX_FILAS_PDF), restantes: Math.max(0, ultimos.length - MAX_FILAS_PDF)
+  };
+}
+
+const MAX_FILAS_PDF = 22;
+const CARD = { bg: '#050806', card: '#0a110e', panel: '#0c1411', border: '#18271f', track: '#111c18', green: '#2ee59d', bright: '#5cf2b8',
+  text: '#ecf5f1', ink2: '#b8c7c1', muted: '#8ea39b', amber: '#f2c14e', red: '#ff5d5d', font: 'Inter' };
+
+/** Responde "tablero": imagen con el resumen del mes + PDF, y el enlace por si quiere interactuar. */
+function sendDashboard_(user, country, today, c, readOnly) {
+  const from = String(user.wa_id), link = userLink_(user, c);
+  const head = readOnly ? 'Tu tablero (modo consulta)' : 'Tu tablero';
+  const onlyLink = note => { send_(from, head + ':\n' + link + (note ? '\n\n' + note : ''), c); };
+  if (String(c.TABLERO_IMAGEN || 'si').toLowerCase() === 'no' || !c.WA_TOKEN || !c.WA_PHONE_NUMBER_ID || typeof SlidesApp === 'undefined') { onlyLink(); return 'enlace'; }
+  const d = cardData_(userMovements_(from), getPerfil_(from), today);
+  if (!d.n) { onlyLink('Aún no tienes movimientos este mes. Cuando registres el primero, te mando tu tablero en imagen y PDF.'); return 'enlace (sin movimientos)'; }
+  const cache = CacheService.getScriptCache(), key = 'tab_' + from + '_' + today, used = Number(cache.get(key) || 0);
+  if (used >= Number(c.MAX_TABLEROS_DIA || 6)) { onlyLink('Hoy ya te envié la imagen ' + used + ' veces; desde el enlace ves todo actualizado.'); return 'enlace (límite de imágenes)'; }
+  try {
+    const r = renderDashboard_(d, user, country, today);
+    const month = monthName_(d.mes);
+    const img = uploadMedia_(r.png, 'image/png', c), doc = uploadMedia_(r.pdf, 'application/pdf', c);
+    sendMedia_(from, 'image', { id: img, caption: head + ' · ' + month + '\nPara tocar los gráficos, cambiar presupuestos o metas: ' + link }, c);
+    sendMedia_(from, 'document', { id: doc, filename: 'Pulso - ' + capitalize_(month) + '.pdf', caption: 'Tu resumen de ' + month + ' en PDF, con tus últimos movimientos.' }, c);
+    cache.put(key, String(used + 1), 21600);
+    return 'tablero en imagen y PDF';
+  } catch (err) {
+    logError_(err, 'tablero en imagen');
+    onlyLink();
+    return 'enlace (sin imagen)';
+  }
+}
+
+/** Arma una presentación temporal, saca la imagen de la primera hoja y el PDF completo, y la borra. */
+function renderDashboard_(d, user, country, today) {
+  const pres = SlidesApp.create('Pulso tablero ' + String(user.wa_id).slice(-4) + ' ' + today);
+  const id = pres.getId();
+  try {
+    const s1 = pres.getSlides()[0];
+    s1.getPageElements().forEach(e => e.remove());
+    drawCard_(s1, d, user, country, today);
+    const s2 = pres.appendSlide(SlidesApp.PredefinedLayout.BLANK);
+    drawMovements_(s2, d, country);
+    const pageId = s1.getObjectId();
+    pres.saveAndClose();
+    const png = slideThumbnail_(id, pageId).setName('tablero.png');
+    const pdf = DriveApp.getFileById(id).getAs('application/pdf').setName('tablero.pdf');
+    return { png: png, pdf: pdf };
+  } finally {
+    try { DriveApp.getFileById(id).setTrashed(true); } catch (err) { logError_(err, 'borrar presentación temporal'); }
+  }
+}
+
+function slideThumbnail_(presId, pageId) {
+  const auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
+  const r = UrlFetchApp.fetch('https://slides.googleapis.com/v1/presentations/' + presId + '/pages/' + pageId +
+    '/thumbnail?thumbnailProperties.thumbnailSize=LARGE&thumbnailProperties.mimeType=PNG', { headers: auth, muteHttpExceptions: true });
+  if (r.getResponseCode() >= 300) throw new Error('Miniatura: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+  const img = UrlFetchApp.fetch(JSON.parse(r.getContentText()).contentUrl, { muteHttpExceptions: true });
+  if (img.getResponseCode() >= 300) throw new Error('Imagen: ' + img.getResponseCode());
+  return img.getBlob();
+}
+
+/** Sube un archivo a WhatsApp y devuelve su id. */
+function uploadMedia_(blob, mime, c) {
+  const r = UrlFetchApp.fetch('https://graph.facebook.com/' + c.GRAPH_VERSION + '/' + c.WA_PHONE_NUMBER_ID + '/media', {
+    method: 'post', headers: { Authorization: 'Bearer ' + c.WA_TOKEN },
+    payload: { messaging_product: 'whatsapp', type: mime, file: blob.setContentType(mime) }, muteHttpExceptions: true
+  });
+  const out = JSON.parse(r.getContentText() || '{}');
+  if (r.getResponseCode() >= 300 || !out.id) throw new Error('Subida a WhatsApp: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+  return out.id;
+}
+
+function sendMedia_(to, type, media, c) {
+  const msg = { messaging_product: 'whatsapp', to: String(to), type: type };
+  msg[type] = media;
+  const r = UrlFetchApp.fetch('https://graph.facebook.com/' + c.GRAPH_VERSION + '/' + c.WA_PHONE_NUMBER_ID + '/messages', {
+    method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + c.WA_TOKEN }, payload: JSON.stringify(msg), muteHttpExceptions: true
+  });
+  if (r.getResponseCode() >= 300) throw new Error('WhatsApp (' + type + '): ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+}
+
+/* Dibujo (puntos; la hoja mide 720 × 405) */
+function box_(sl, x, y, w, h, fill, o) {
+  o = o || {};
+  const s = sl.insertShape(o.round ? SlidesApp.ShapeType.ROUND_RECTANGLE : SlidesApp.ShapeType.RECTANGLE, x, y, Math.max(w, 0.5), Math.max(h, 0.5));
+  if (fill) s.getFill().setSolidFill(fill, o.alpha === undefined ? 1 : o.alpha); else s.getFill().setTransparent();
+  if (o.line) { s.getBorder().getLineFill().setSolidFill(o.line, o.lineAlpha === undefined ? 1 : o.lineAlpha); s.getBorder().setWeight(o.lw || 0.75); }
+  else s.getBorder().setTransparent();
+  return s;
+}
+
+function txt_(sl, text, x, y, w, h, o) {
+  o = o || {};
+  const s = sl.insertTextBox(String(text), x, y, w, h);
+  const tr = s.getText();
+  tr.getTextStyle().setFontFamily(CARD.font).setFontSize(o.size || 10).setForegroundColor(o.color || CARD.text).setBold(!!o.bold);
+  const ps = tr.getParagraphStyle();
+  ps.setSpaceAbove(0).setSpaceBelow(0).setLineSpacing(o.lineSpacing || 100);
+  if (o.align) ps.setParagraphAlignment(SlidesApp.ParagraphAlignment[o.align]);
+  s.setContentAlignment(SlidesApp.ContentAlignment[o.v || 'TOP']);
+  return s;
+}
+
+function seg_(sl, x1, y1, x2, y2, color, weight, o) {
+  o = o || {};
+  const l = sl.insertLine(SlidesApp.LineCategory.STRAIGHT, x1, y1, x2, y2);
+  l.getLineFill().setSolidFill(color, o.alpha === undefined ? 1 : o.alpha);
+  l.setWeight(weight);
+  if (o.dash) l.setDashStyle(SlidesApp.DashStyle.DASH);
+  return l;
+}
+
+function header_(sl, title, right) {
+  sl.getBackground().setSolidFill(CARD.bg);
+  box_(sl, 10, 10, 700, 385, CARD.card, { round: true, line: CARD.green, lineAlpha: 0.35, lw: 1 });
+  box_(sl, 28, 26, 22, 22, CARD.green, { round: true });
+  seg_(sl, 31, 37, 35.5, 37, CARD.bg, 1.6); seg_(sl, 35.5, 37, 38, 31.5, CARD.bg, 1.6); seg_(sl, 38, 31.5, 41.5, 42.5, CARD.bg, 1.6);
+  seg_(sl, 41.5, 42.5, 43.5, 37, CARD.bg, 1.6); seg_(sl, 43.5, 37, 47, 37, CARD.bg, 1.6);
+  txt_(sl, title, 52, 22, 300, 30, { size: 13, bold: true, v: 'MIDDLE' });
+  txt_(sl, right, 360, 22, 334, 30, { size: 10, color: CARD.muted, align: 'END', v: 'MIDDLE' });
+}
+
+function drawCard_(sl, d, user, country, today) {
+  const money = n => fmtMoney_(n, country), pct = x => Math.round(x * 100) + ' %';
+  const nombre = String(user.nombre || '').split(' ')[0];
+  header_(sl, 'Pulso Financiero', (nombre ? nombre + ' · ' : '') + capitalize_(monthName_(d.mes)) + ' · al ' + shortDate_(today));
+
+  // Indicadores
+  const kpis = [
+    ['Ingresos', money(d.ingresos), 'Registrados este mes', CARD.text],
+    ['Gastos', money(d.gastos), d.n + (d.n === 1 ? ' registro' : ' registros'), CARD.text],
+    ['Te queda', money(d.excedente), d.ingresos > 0 ? 'Tasa de ahorro ' + pct(d.tasaAhorro) : 'Sin ingresos registrados', d.excedente >= 0 ? CARD.green : CARD.red],
+    ['Presupuesto', d.cumplimiento === null ? 'Sin definir' : pct(d.cumplimiento), d.cumplimiento === null ? 'Defínelo en tu tablero' : d.dentro + ' de ' + d.presupuestadas + ' categorías dentro',
+      d.cumplimiento === null ? CARD.muted : d.cumplimiento >= 1 ? CARD.green : d.cumplimiento >= 0.5 ? CARD.amber : CARD.red]
+  ];
+  const kw = (664 - 3 * 10) / 4;
+  kpis.forEach((k, i) => {
+    const x = 28 + i * (kw + 10);
+    box_(sl, x, 60, kw, 64, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+    txt_(sl, k[0], x + 4, 62, kw - 8, 18, { size: 8.5, color: CARD.muted });
+    txt_(sl, k[1], x + 4, 77, kw - 8, 26, { size: k[1].length > 13 ? 14 : 18, bold: true, color: k[3], v: 'MIDDLE' });
+    txt_(sl, k[2], x + 4, 102, kw - 8, 18, { size: 7.5, color: CARD.muted });
+  });
+
+  // Gasto acumulado del mes
+  const px = 28, py = 134, pw = 330, ph = 244;
+  box_(sl, px, py, pw, ph, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  txt_(sl, 'Gasto acumulado del mes', px + 4, py + 4, pw - 8, 18, { size: 10.5, bold: true });
+  const ax = px + 16, ay = py + 40, aw = pw - 72, ah = ph - 76;
+  const total = d.presupuestoTotal > 0 ? d.presupuestoTotal : 0;
+  const max = Math.max(d.acumulado[d.acumulado.length - 1] || 0, total) * 1.08 || 1;
+  [0, 0.5, 1].forEach(f => {
+    const y = ay + ah - f * ah;
+    seg_(sl, ax, y, ax + aw, y, CARD.border, 0.75);
+    txt_(sl, money(max * f), ax + aw + 2, y - 8, 56, 16, { size: 7, color: CARD.muted, v: 'MIDDLE' });
+  });
+  if (total > 0) {
+    const yb = ay + ah - (total / max) * ah;
+    seg_(sl, ax, yb, ax + aw, yb, CARD.amber, 1, { dash: true });
+    txt_(sl, 'Presupuesto ' + money(total), ax, yb - 16, aw, 14, { size: 7, color: CARD.amber, align: 'END' });
+  }
+  const days = new Date(Date.UTC(Number(d.mes.slice(0, 4)), Number(d.mes.slice(5, 7)), 0)).getUTCDate();
+  const pt = (i, v) => [ax + (days > 1 ? (i / (days - 1)) * aw : 0), ay + ah - (v / max) * ah];
+  const points = d.acumulado.map((v, i) => pt(i, v));
+  for (let i = 1; i < points.length; i++) seg_(sl, points[i - 1][0], points[i - 1][1], points[i][0], points[i][1], CARD.green, 6, { alpha: 0.18 });
+  for (let i = 1; i < points.length; i++) seg_(sl, points[i - 1][0], points[i - 1][1], points[i][0], points[i][1], CARD.green, 2);
+  const last = points[points.length - 1];
+  sl.insertShape(SlidesApp.ShapeType.ELLIPSE, last[0] - 7, last[1] - 7, 14, 14).getFill().setSolidFill(CARD.green, 0.25);
+  const dot = sl.insertShape(SlidesApp.ShapeType.ELLIPSE, last[0] - 3.5, last[1] - 3.5, 7, 7);
+  dot.getFill().setSolidFill(CARD.bright); dot.getBorder().setTransparent();
+  [[1, 'START'], [Math.ceil(days / 2), 'CENTER'], [days, 'END']].forEach(([day, al]) => {
+    const x = pt(day - 1, 0)[0];
+    txt_(sl, day + ' ' + SHORT_MONTHS[Number(d.mes.slice(5, 7)) - 1], al === 'START' ? x - 6 : al === 'END' ? x - 54 : x - 30, ay + ah + 2, 60, 16, { size: 7, color: CARD.muted, align: al });
+  });
+  txt_(sl, 'Llevas ' + money(d.gastos) + ' este mes.', px + 4, py + ph - 24, pw - 8, 18, { size: 8.5, color: CARD.ink2 });
+
+  // Dónde se va tu dinero
+  const rx = 368, rw = 324;
+  box_(sl, rx, py, rw, ph, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  txt_(sl, 'Dónde se va tu dinero', rx + 4, py + 4, rw - 8, 18, { size: 10.5, bold: true });
+  const rows = d.cats.slice(0, 6), maxShare = rows.length ? rows[0].share : 1;
+  if (!rows.length) txt_(sl, 'Aún no registras gastos este mes.', rx + 4, py + 40, rw - 8, 20, { size: 9, color: CARD.muted });
+  rows.forEach((r, i) => {
+    const y = py + 32 + i * 34;
+    const color = r.estado === 'excedido' ? CARD.red : r.estado === 'alerta' ? CARD.amber : CARD.green;
+    txt_(sl, categoryById_(r.id).name, rx + 4, y, 190, 16, { size: 9, bold: true });
+    txt_(sl, money(r.monto), rx + rw - 124, y, 120, 16, { size: 9, bold: true, align: 'END' });
+    box_(sl, rx + 12, y + 18, rw - 24, 5, CARD.track, { round: true });
+    const fill = r.presupuesto ? Math.min(r.uso, 1) : (maxShare ? r.share / maxShare : 0);
+    if (fill > 0) box_(sl, rx + 12, y + 18, (rw - 24) * fill, 5, color, { round: true });
+    txt_(sl, r.presupuesto ? pct(r.uso) + ' de ' + money(r.presupuesto) + (r.estado === 'excedido' ? ' · te pasaste' : '') : pct(r.share) + ' del gasto',
+      rx + 4, y + 21, rw - 8, 14, { size: 7, color: r.presupuesto && r.estado !== 'ok' ? color : CARD.muted });
+  });
+  if (d.cats.length > 6) txt_(sl, '+ ' + (d.cats.length - 6) + ' categorías más en tu tablero', rx + 4, py + ph - 24, rw - 8, 18, { size: 7.5, color: CARD.muted });
+  txt_(sl, 'Herramienta educativa; no es asesoría financiera.', 28, 380, 664, 14, { size: 6.5, color: CARD.muted, align: 'CENTER' });
+}
+
+function drawMovements_(sl, d, country) {
+  header_(sl, 'Movimientos de ' + monthName_(d.mes), d.n + (d.n === 1 ? ' registro' : ' registros') + ' · ingresos ' + fmtMoney_(d.ingresos, country) + ' · gastos ' + fmtMoney_(d.gastos, country));
+  const cols = [[28, 60, 'Fecha', 'START'], [90, 290, 'Descripción', 'START'], [382, 170, 'Categoría', 'START'], [556, 136, 'Monto', 'END']];
+  box_(sl, 28, 60, 664, 20, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  const lines = [[], [], [], []];
+  d.ultimos.forEach(m => {
+    const ing = m.tipo === 'ingreso';
+    lines[0].push(shortDate_(String(m.fecha)));
+    lines[1].push(String(m.descripcion || m.texto || '').replace(/\s+/g, ' ').slice(0, 48) || '—');
+    lines[2].push(ing ? 'Ingreso' : categoryById_(m.categoria).name);
+    lines[3].push((ing ? '+' : '−') + fmtMoney_(Number(m.monto) || 0, country));
+  });
+  cols.forEach((c, i) => {
+    txt_(sl, c[2], c[0], 60, c[1], 20, { size: 8, bold: true, color: CARD.green, align: c[3], v: 'MIDDLE' });
+    if (lines[i].length) txt_(sl, lines[i].join('\n'), c[0], 84, c[1], 290, { size: 8.5, color: i === 3 ? CARD.text : CARD.ink2, align: c[3], lineSpacing: 115 });
+  });
+  txt_(sl, d.restantes ? 'Y ' + d.restantes + ' movimientos más: los ves todos en tu tablero.' : 'Estos son todos tus movimientos del mes.', 28, 372, 664, 16, { size: 7.5, color: CARD.muted, align: 'CENTER' });
+}
+
 /* ============================================================
  * 8. DATOS (Google Sheets)
  * ============================================================ */
@@ -1200,4 +1449,21 @@ function probarBot() {
   ['hola', 'almuerzo 25 mil y taxi 12.000', 'me pagaron la quincena 2,1 millones', 'transporte', 'resumen'].forEach((t, i) => {
     handleMessage_({ from: '570000000000', id: 'prueba-' + Date.now() + '-' + i, type: 'text', text: { body: t } }, 'Persona de prueba', Object.assign({}, c, { WA_TOKEN: '' }));
   });
+}
+
+/** Prueba manual: arma el tablero con datos de ejemplo y deja la imagen y el PDF en tu Drive (carpeta raíz). */
+function probarTablero() {
+  const country = countryById_('CO'), today = Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd');
+  const day = k => today.slice(0, 8) + String(Math.max(1, Math.min(Number(today.slice(8, 10)), k))).padStart(2, '0');
+  const movs = [
+    ['ingreso', 4200000, 'salario', 'Salario', 1], ['gasto', 1500000, 'vivienda', 'Arriendo', 1], ['gasto', 320000, 'mercado', 'Mercado del mes', 2],
+    ['gasto', 85000, 'comida', 'Almuerzos', 3], ['gasto', 120000, 'transporte', 'Gasolina', 4], ['gasto', 210000, 'servicios', 'Luz y agua', 5],
+    ['gasto', 60000, 'comida', 'Cena', 6], ['gasto', 180000, 'mercado', 'Mercado', 9], ['gasto', 45000, 'ocio', 'Cine', 10],
+    ['gasto', 400000, 'deudas', 'Cuota tarjeta', 12], ['gasto', 95000, 'comida', 'Domicilios', 14]
+  ].map((r, i) => ({ id: 'p' + i, fecha: day(r[4]), tipo: r[0], monto: r[1], categoria: r[2], descripcion: r[3] }));
+  const perfil = { presupuestos: { mercado: 600000, comida: 200000, transporte: 300000, ocio: 150000 } };
+  const r = renderDashboard_(cardData_(movs, perfil, today), { wa_id: '570000000000', nombre: 'Ana Prueba' }, country, today);
+  const png = DriveApp.createFile(r.png.setName('Pulso prueba tablero.png')), pdf = DriveApp.createFile(r.pdf.setName('Pulso prueba tablero.pdf'));
+  console.log('Imagen: ' + png.getId() + ' · PDF: ' + pdf.getId());
+  return { png: png.getId(), pdf: pdf.getId() };
 }

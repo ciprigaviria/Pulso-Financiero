@@ -17,7 +17,7 @@ export default function Privacidad() {
       <h2>Qué datos recogemos</h2>
       <ul>
         <li><strong>Respuestas del test:</strong> rangos de comportamiento financiero, país, rango de edad, tipo de ingreso y si tienes personas a cargo. Nunca pedimos montos, nombre ni documento de identidad.</li>
-        <li><strong>Correo electrónico:</strong> solo si lo escribes para recibir tu resumen, te inscribes en la beta o te suscribes a Premium.</li>
+        <li><strong>Correo electrónico:</strong> solo si lo escribes para recibir tu resumen, te suscribes a Premium o nos escribes a servicio al cliente.</li>
         <li><strong>Comentarios:</strong> si nos escribes desde el tablero, guardamos tu comentario y el nombre que pongas. Solo lo publicamos si marcas que nos autorizas.</li>
         <li><strong>Asistente de WhatsApp (Premium):</strong> tu número de WhatsApp, el nombre de tu perfil, el texto de los mensajes que le envías, las fotos de recibos que le mandas y los movimientos que resultan (fecha, monto, categoría y descripción). También guardamos el código de tu suscripción para saber si está activa.</li>
         <li><strong>Datos de compra:</strong> los procesa Lemon Squeezy como vendedor registrado; nosotros recibimos tu nombre, correo y el estado del pedido, nunca los datos de tu tarjeta.</li>
@@ -30,7 +30,7 @@ export default function Privacidad() {
       <ul>
         <li>Enviarte tu resumen gratuito, tu acceso a Premium y tu informe.</li>
         <li>Registrar tus movimientos, mostrarte tu tablero y darte recomendaciones con tus cifras.</li>
-        <li>Darte acceso a la beta y mejorar el producto con tus comentarios.</li>
+        <li>Responder tus solicitudes de servicio al cliente y mejorar el producto con tus comentarios.</li>
         <li>Enviarte consejos de finanzas personales por correo, si lo autorizaste.</li>
         <li>Mejorar el test con estadísticas agregadas y anónimas.</li>
       </ul>

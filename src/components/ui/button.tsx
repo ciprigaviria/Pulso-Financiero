@@ -10,14 +10,14 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-gradient-to-t from-primary to-[color-mix(in_srgb,var(--primary)_80%,white)] text-primary-foreground border border-primary shadow-lg shadow-primary/30 hover:-translate-y-px hover:shadow-primary/40",
+          "bg-gradient-to-t from-primary to-[color-mix(in_srgb,var(--primary)_75%,white)] text-primary-foreground border border-primary shadow-[0_0_24px_-4px_var(--glow)] hover:-translate-y-px hover:shadow-[0_0_34px_-2px_var(--glow)]",
         outline:
-          "border bg-card text-foreground shadow-sm hover:border-muted-foreground/50",
+          "border border-primary/30 bg-card text-foreground shadow-sm hover:border-primary/70 hover:shadow-[0_0_20px_-6px_var(--glow)]",
         dark:
           "bg-gradient-to-t from-neutral-900 to-neutral-700 text-white border border-neutral-700 shadow-lg shadow-neutral-900/30 hover:-translate-y-px",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         white:
-          "bg-gradient-to-b from-white via-white/95 to-white/70 text-black shadow-lg shadow-white/10 hover:scale-[1.03] active:scale-95",
+          "bg-gradient-to-t from-primary to-[color-mix(in_srgb,var(--primary)_75%,white)] text-primary-foreground shadow-[0_0_24px_-4px_var(--glow)] hover:scale-[1.03] active:scale-95",
         "ghost-dark": "border border-white/15 bg-white/5 text-white hover:bg-white/10",
         link: "text-primary underline-offset-4 hover:underline",
       },

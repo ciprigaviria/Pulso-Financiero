@@ -14,10 +14,10 @@ import { cn } from "@/lib/utils"
 import { SurplusCard } from "./surplus-card"
 
 const GROUPS: TreeGroup[] = [
-  { id: "esencial", name: "Esenciales", color: "#0e7c66", ink: "light" },
-  { id: "importante", name: "Importantes", color: "#8fd3bd", ink: "dark" },
-  { id: "prescindible", name: "Discrecionales", color: "#f2b84b", ink: "dark" },
-  { id: "deuda", name: "Servicio de deuda", color: "#d6453d", ink: "light" },
+  { id: "esencial", name: "Esenciales", color: "#1fb37a", ink: "light" },
+  { id: "importante", name: "Importantes", color: "#8ff5cc", ink: "dark" },
+  { id: "prescindible", name: "Discrecionales", color: "#f2c14e", ink: "dark" },
+  { id: "deuda", name: "Servicio de deuda", color: "#ff5d5d", ink: "light" },
 ]
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]

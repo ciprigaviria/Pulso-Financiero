@@ -74,7 +74,7 @@ export function ChatDemo({ className, loop = true, height = 430 }: { className?:
   return (
     <div ref={ref} className={cn("relative mx-auto w-full max-w-[340px] rounded-[2.6rem] border border-white/15 bg-[#0b0f0e] p-2.5 shadow-[0_30px_80px_-20px_rgba(0,0,0,.6)]", className)} aria-label="Ejemplo de conversación con el asistente de WhatsApp" role="img">
       <div className="overflow-hidden rounded-[2.1rem]">
-        <div className="relative flex items-center gap-3 bg-[#075e54] px-4 pb-3 pt-8 text-white">
+        <div className="relative flex items-center gap-3 bg-[#202c33] px-4 pb-3 pt-8 text-[#e9edef]">
           <span className="absolute left-1/2 top-2 h-5 w-24 -translate-x-1/2 rounded-full bg-black" aria-hidden="true" />
           <BrandMark size={34} />
           <div className="leading-tight">
@@ -82,22 +82,22 @@ export function ChatDemo({ className, loop = true, height = 430 }: { className?:
             <div className="text-[11px] text-white/70">{botTyping ? "escribiendo…" : "en línea"}</div>
           </div>
         </div>
-        <div className="flex flex-col justify-end gap-2 overflow-hidden bg-[#ece5dd] px-3 py-3" style={{ height, backgroundImage: "radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px)", backgroundSize: "14px 14px" }}>
+        <div className="flex flex-col justify-end gap-2 overflow-hidden bg-[#0b141a] px-3 py-3" style={{ height, backgroundImage: "radial-gradient(rgba(255,255,255,.035) 1px, transparent 1px)", backgroundSize: "14px 14px" }}>
           {msgs.slice(0, shown).map((m, i) => (
-            <div key={i} className={cn("max-w-[86%] whitespace-pre-line rounded-xl px-3 py-2 text-[13px] leading-snug text-[#111b21] shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300",
-              m.from === "me" ? "self-end rounded-tr-sm bg-[#d9fdd3]" : "self-start rounded-tl-sm bg-white")}>
+            <div key={i} className={cn("max-w-[86%] whitespace-pre-line rounded-xl px-3 py-2 text-[13px] leading-snug text-[#e9edef] shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300",
+              m.from === "me" ? "self-end rounded-tr-sm bg-[#005c4b]" : "self-start rounded-tl-sm bg-[#202c33]")}>
               {m.text}
               {m.from === "me" && <CheckCheck className="ml-1 inline size-3.5 text-[#53bdeb]" />}
             </div>
           ))}
           {botTyping && (
-            <div className="flex gap-1 self-start rounded-xl rounded-tl-sm bg-white px-3 py-3 shadow-sm">
+            <div className="flex gap-1 self-start rounded-xl rounded-tl-sm bg-[#202c33] px-3 py-3 shadow-sm">
               {[0, 1, 2].map((d) => <i key={d} className="size-1.5 animate-bounce rounded-full bg-[#667781]" style={{ animationDelay: `${d * 0.15}s` }} />)}
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2 bg-[#f0f2f5] px-2.5 py-2">
-          <div className="flex min-h-9 flex-1 items-center gap-2 rounded-full bg-white px-3 text-[13px] text-[#111b21]">
+        <div className="flex items-center gap-2 bg-[#202c33] px-2.5 py-2">
+          <div className="flex min-h-9 flex-1 items-center gap-2 rounded-full bg-[#2a3942] px-3 text-[13px] text-[#e9edef]">
             <Camera className="size-4 shrink-0 text-[#8696a0]" />
             <span className={cn("truncate", !draft && "text-[#8696a0]")}>{draft || "Mensaje"}</span>
             {draft && <span className="-ml-1.5 h-4 w-px animate-pulse bg-[#00a884]" />}

@@ -14,19 +14,19 @@ import { config } from "@/config"
 type Tile = { icon: LucideIcon; x: number; y: number; label?: string; tint: string }
 // Posición en % respecto al centro del teléfono (x negativo = izquierda)
 const TILES: Tile[] = [
-  { icon: ShoppingCart, x: -42, y: -30, label: "Mercado", tint: "#14b88f" },
-  { icon: Coffee, x: -30, y: -6, tint: "#f2b84b" },
-  { icon: Car, x: -44, y: 14, label: "Transporte", tint: "#6fd3b4" },
-  { icon: Home, x: -28, y: 34, tint: "#0e7c66" },
+  { icon: ShoppingCart, x: -42, y: -30, label: "Mercado", tint: "#2ee59d" },
+  { icon: Coffee, x: -30, y: -6, tint: "#f2c14e" },
+  { icon: Car, x: -44, y: 14, label: "Transporte", tint: "#5cf2b8" },
+  { icon: Home, x: -28, y: 34, tint: "#1fb37a" },
   { icon: Receipt, x: -40, y: 52, tint: "#e0742a" },
   { icon: Utensils, x: -20, y: -36, tint: "#f39a6b" },
   { icon: TrendingUp, x: 40, y: -32, label: "Inversión", tint: "#5b8def" },
-  { icon: PiggyBank, x: 29, y: -8, tint: "#14b88f" },
-  { icon: Target, x: 44, y: 12, label: "Metas", tint: "#f2b84b" },
-  { icon: CreditCard, x: 27, y: 32, tint: "#d6453d" },
-  { icon: Lightbulb, x: 42, y: 50, tint: "#3fbf9b" },
+  { icon: PiggyBank, x: 29, y: -8, tint: "#2ee59d" },
+  { icon: Target, x: 44, y: 12, label: "Metas", tint: "#f2c14e" },
+  { icon: CreditCard, x: 27, y: 32, tint: "#ff5d5d" },
+  { icon: Lightbulb, x: 42, y: 50, tint: "#46e8a8" },
   { icon: Plane, x: 20, y: -38, tint: "#8fb2f5" },
-  { icon: Smartphone, x: -14, y: 58, tint: "#6fd3b4" },
+  { icon: Smartphone, x: -14, y: 58, tint: "#5cf2b8" },
 ]
 
 function FloatingTile({ t, i, progress }: { t: Tile; i: number; progress: MotionValue<number> }) {
@@ -58,7 +58,7 @@ export function Hero() {
     <section ref={ref} className="relative overflow-hidden bg-black text-white">
       {/* fondo: brillo verde, cuadrícula y grabado tipo billete */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[30%] mx-auto h-[700px] max-w-5xl rounded-full opacity-60 blur-3xl"
-        style={{ background: "radial-gradient(ellipse at center, rgba(20,184,143,.45), rgba(20,184,143,.08) 45%, transparent 70%)" }} />
+        style={{ background: "radial-gradient(ellipse at center, rgba(46,229,157,.45), rgba(46,229,157,.08) 45%, transparent 70%)" }} />
       <div aria-hidden="true" className="bg-guilloche-dark pointer-events-none absolute inset-0 opacity-60" />
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
@@ -72,7 +72,7 @@ export function Hero() {
 
         <h1 className="max-w-4xl text-[2.5rem] font-semibold leading-[1.12] tracking-[-0.035em] md:text-6xl lg:text-[4.1rem]">
           Escribe tus gastos por{" "}
-          <span className="relative inline-flex items-center gap-2 rounded-2xl bg-[#25d366]/15 px-3 align-middle text-[#5fe39a] ring-1 ring-[#25d366]/30">
+          <span className="relative inline-flex items-center gap-2 rounded-2xl bg-[#25d366]/15 px-3 align-middle text-[#5cf2b8] ring-1 ring-[#25d366]/30">
             <svg viewBox="0 0 24 24" className="size-[0.8em]" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.9-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z" /></svg>
             WhatsApp
           </span>
