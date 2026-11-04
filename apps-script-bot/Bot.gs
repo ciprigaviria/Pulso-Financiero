@@ -5,12 +5,18 @@
  *  1. Recibe los mensajes de WhatsApp (a través del relevo de Cloudflare, ver relay/worker.js).
  *  2. Entiende gastos e ingresos escritos como la gente escribe ("almuerzo 25 mil", "me pagaron 4,5 palos")
  *     con IA (Claude) y, si la IA no está disponible, con reglas propias.
- *  3. Responde con una confirmación, resúmenes del mes y el enlace personal a "Mis movimientos".
- *  4. Guarda todo en una hoja de cálculo y entrega los movimientos al sitio (GET ?action=movimientos).
+ *  3. Lee fotos de recibos con IA y anota el total.
+ *  4. Responde con una confirmación, resúmenes del mes y el enlace personal al tablero.
+ *  5. Guarda todo en una hoja de cálculo y entrega los movimientos al sitio (GET ?action=tablero).
+ *  6. Liga cada número a una suscripción: "activar CÓDIGO" (el correo de bienvenida trae el botón).
+ *     Si la suscripción termina, el tablero queda en modo consulta DIAS_CONSULTA días y luego se borran los datos.
+ *  7. Envía cada lunes el resumen de la semana (plantilla de Meta o mensaje normal si la persona escribió en las últimas 24 h).
  *
- * Puesta en marcha: ver README.md, sección "Bot de WhatsApp (piloto)".
+ * Puesta en marcha: ver README.md, sección "Bot de WhatsApp".
  * Propiedades del script: WA_TOKEN, WA_PHONE_NUMBER_ID, RELAY_SECRET, ANTHROPIC_API_KEY,
- * y opcionales SITE_URL, BETA_NUMEROS, LLM_MODEL, GRAPH_VERSION, MAX_MENSAJES_DIA.
+ * y opcionales SITE_URL, PAGOS_URL (activa el cobro), BETA_NUMEROS, CONTACTO, RENOVAR_URL, DIAS_CONSULTA,
+ * WA_PLANTILLA_RESUMEN, WA_PLANTILLA_IDIOMA, RESUMEN_HORA, LLM_MODEL, GRAPH_VERSION, MAX_MENSAJES_DIA, MAX_FOTOS_DIA.
+ * Ejecuta instalarTareas() una vez para la revisión de suscripciones y el resumen semanal.
  *
  * Las categorías (sección 2) deben coincidir con src/lib/bot-categories.ts; `npm test` lo verifica.
  */
@@ -25,7 +31,16 @@ const BOT_DEFAULTS = {
   GRAPH_VERSION: 'v26.0',
   LLM_MODEL: 'claude-haiku-4-5',
   MAX_MENSAJES_DIA: '60',
-  BETA_NUMEROS: ''
+  MAX_FOTOS_DIA: '15',
+  BETA_NUMEROS: '',
+  PAGOS_URL: '',
+  RENOVAR_URL: '',
+  CONTACTO: '',
+  DIAS_CONSULTA: '90',
+  WA_PLANTILLA_RESUMEN: '',
+  WA_PLANTILLA_IDIOMA: 'es',
+  RESUMEN_HORA: '9',
+  PREMIUM_NAME: 'Pulso Premium'
 };
 
 function cfg_() {
@@ -250,6 +265,25 @@ function llmSystem_(today, country) {
 }
 
 function llmParse_(text, today, country, c) {
+  return llmCall_(llmSystem_(today, country), String(text).slice(0, 1000), c);
+}
+
+/** Lee la foto de un recibo: un solo gasto con el total pagado. */
+function llmReceipt_(img, caption, today, country, c) {
+  const system = llmSystem_(today, country) + '\n' + [
+    '- Ahora recibes la FOTO de un recibo, factura o comprobante de pago. Registra UN solo gasto con el TOTAL pagado',
+    '  (no subtotales ni impuestos por separado). Descripción: el comercio o lo comprado. Fecha: la del recibo si se lee y es de los últimos dos meses.',
+    '- Si la foto no es un recibo o no se lee el total, intencion=otro y en "respuesta" pide que escriba el gasto.',
+    '- Si el texto que acompaña la foto trae un monto, usa ese monto.'
+  ].join('\n');
+  const content = [
+    { type: 'image', source: { type: 'base64', media_type: img.mime, data: img.data } },
+    { type: 'text', text: caption ? 'Texto que acompaña la foto: ' + caption : 'Foto de un recibo.' }
+  ];
+  return llmCall_(system, content, c);
+}
+
+function llmCall_(system, content, c) {
   if (!c.ANTHROPIC_API_KEY) return null;
   const resp = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
     method: 'post',
@@ -258,10 +292,10 @@ function llmParse_(text, today, country, c) {
     payload: JSON.stringify({
       model: c.LLM_MODEL,
       max_tokens: 700,
-      system: llmSystem_(today, country),
+      system: system,
       tools: [llmTool_()],
       tool_choice: { type: 'tool', name: 'registrar' },
-      messages: [{ role: 'user', content: String(text).slice(0, 1000) }]
+      messages: [{ role: 'user', content: content }]
     }),
     muteHttpExceptions: true
   });
@@ -364,6 +398,8 @@ const HELP = [
   '• *cuánto llevo en restaurantes*',
   '• *borrar* — elimina lo último que anotaste',
   '• *tablero* — tu enlace personal con gráficos',
+  '• También puedes mandarme la *foto de un recibo*',
+  '• *resumen no* — dejar de recibir el resumen de los lunes',
   '• *borrar mis datos* — elimina toda tu información'
 ].join('\n');
 
@@ -374,25 +410,32 @@ function handleMessage_(m, profileName, c) {
   if (cache.get('msg_' + m.id) || movementWithMsg_(m.id)) return 'duplicado';
   cache.put('msg_' + m.id, '1', 21600);
 
-  const beta = String(c.BETA_NUMEROS || '').split(/[\s,;]+/).filter(Boolean);
-  if (beta.length && beta.indexOf(from) === -1) return 'fuera de la beta';
+  const raw = m.type === 'text' ? String((m.text && m.text.body) || '').trim() : '';
+  const gated = gated_(c), beta = isBeta_(from, c);
+
+  // Activación de la suscripción: "activar CÓDIGO" (el código lleva al menos un dígito)
+  const act = raw.match(/^activar\s+((?=[A-Za-z-]*\d)[A-Za-z0-9-]{8,80})$/i);
+  if (gated && act) return activate_(from, act[1], profileName, c);
+
+  if (!gated && String(c.BETA_NUMEROS || '').trim() && !beta) return 'fuera de la beta';
 
   let user = getUser_(from);
   if (!user) {
+    if (gated && !beta) { noticeOnce_(from, 'invitar', inviteText_(c), c); return 'sin suscripción'; }
     const guess = countryFromPhone_(from);
     user = createUser_(from, profileName, guess);
-    send_(from, '¡Hola' + (profileName ? ', ' + profileName.split(' ')[0] : '') + '! Soy el asistente de ' + c.BRAND_NAME + '. ' +
-      (guess ? 'Registraré tus cifras en ' + guess.currency + ' (' + guess.name + '). Si vives en otro país, escríbeme su nombre.\n\n' : 'Para usar la moneda correcta, escríbeme tu país.\n\n') + HELP, c);
-    const first = m.type === 'text' ? norm_(m.text && m.text.body) : '';
-    if (!guess || m.type !== 'text' || !parseAmounts_(first).length) return 'bienvenida';
+    send_(from, welcomeText_(profileName, guess, c), c);
+    if (!guess || m.type !== 'text' || !parseAmounts_(norm_(raw)).length) return 'bienvenida';
   }
   if (!countUsage_(user, c)) return 'límite diario';
+  const access = accessOf_(user, c);
+  const readOnly = access === 'vencida' || access === 'ninguna';
 
-  if (m.type !== 'text') {
-    send_(from, 'Por ahora entiendo solo mensajes de texto. Escríbeme el gasto, por ejemplo: "mercado 85 mil".', c);
+  if (m.type !== 'text' && m.type !== 'image') {
+    send_(from, 'Entiendo mensajes de texto y fotos de recibos. Escríbeme el gasto, por ejemplo: "mercado 85 mil".', c);
     return 'no es texto';
   }
-  const text = String((m.text && m.text.body) || '').trim();
+  const text = raw;
   const t = norm_(text);
   const country = countryById_(user.pais) || countryFromPhone_(from) || countryById_('US');
   const today = Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd');
@@ -406,6 +449,26 @@ function handleMessage_(m, profileName, c) {
     updateUser_(from, { estado: 'confirmar_borrado' });
     send_(from, 'Esto elimina todos tus movimientos y tu enlace. Para confirmar, escribe: CONFIRMAR BORRADO', c);
     return 'pide confirmación';
+  }
+
+  // Suscripción terminada (o número sin suscripción): solo consulta
+  if (readOnly) {
+    if (/^(tablero|mi tablero|link|enlace|mi enlace|graficos|grafica)$/.test(t)) { send_(from, 'Tu tablero (modo consulta):\n' + userLink_(user, c), c); return 'enlace (consulta)'; }
+    if (/^(resumen|balance|como voy|como vamos|mi mes)$/.test(t)) { send_(from, summaryText_(from, country, today, c), c); return 'resumen (consulta)'; }
+    noticeOnce_(from, 'consulta', readOnlyText_(user, access, c), c);
+    return 'solo consulta';
+  }
+
+  if (m.type === 'image') return handlePhoto_(m, user, country, today, c);
+
+  // Resumen semanal: activar o desactivar
+  if (/^(resumen no|no (quiero|mas) (el )?resumen(es)?( semanal(es)?)?|cancelar resumen|desactivar resumen|sin resumen)$/.test(t)) {
+    updateUser_(from, { resumen_semanal: 'no' });
+    send_(from, 'Listo, ya no te enviaré el resumen de los lunes. Si lo quieres de vuelta, escribe *resumen si*.', c); return 'resumen semanal: no';
+  }
+  if (/^(resumen si|activar resumen|quiero (el )?resumen( semanal)?)$/.test(t)) {
+    updateUser_(from, { resumen_semanal: 'si' });
+    send_(from, 'Listo: cada lunes te enviaré el resumen de tu semana.', c); return 'resumen semanal: sí';
   }
 
   // Cambio de país
@@ -465,6 +528,164 @@ function handleMessage_(m, profileName, c) {
   updateUser_(from, { ultimo_mov_id: saved[saved.length - 1].id, ultimo_mov_ts: new Date().toISOString() });
   send_(from, confirmText_(saved, country, today) + budgetText_(from, saved, perfil, country, today), c);
   return 'registrado ' + saved.length;
+}
+
+/* ---------- Fotos de recibos ---------- */
+
+function handlePhoto_(m, user, country, today, c) {
+  const from = String(user.wa_id);
+  if (!c.ANTHROPIC_API_KEY || !c.WA_TOKEN) { send_(from, 'Por ahora no puedo leer fotos. Escríbeme el gasto, por ejemplo: "mercado 85 mil".', c); return 'foto sin IA'; }
+  const day = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd');
+  const prev = String(user.fotos_hoy || '').split('|');
+  const count = prev[0] === day ? Number(prev[1]) + 1 : 1;
+  updateUser_(from, { fotos_hoy: day + '|' + count });
+  if (count > Number(c.MAX_FOTOS_DIA)) {
+    if (count === Number(c.MAX_FOTOS_DIA) + 1) send_(from, 'Llegaste al máximo de fotos de hoy. Puedes seguir escribiendo tus gastos.', c);
+    return 'límite de fotos';
+  }
+  let img = null;
+  try { img = downloadMedia_(m.image && m.image.id, c); } catch (err) { logError_(err, 'foto'); }
+  if (!img || img.error) {
+    send_(from, img && img.error === 'peso' ? 'La foto es muy pesada para leerla. Envíala de nuevo (WhatsApp la comprime) o escríbeme el gasto.' : 'No pude abrir la foto. Envíala de nuevo o escríbeme el gasto, por ejemplo: "mercado 85 mil".', c);
+    return 'foto: no se pudo abrir';
+  }
+  const caption = String((m.image && m.image.caption) || '').trim().slice(0, 300);
+  let parsed = null;
+  try { parsed = llmReceipt_(img, caption, today, country, c); } catch (err) { logError_(err, 'IA foto'); }
+  // Si la foto trae un texto con monto, el monto debe coincidir con lo escrito; si no, se acepta lo que lee la IA.
+  const movs = applyLearned_(checkMovements_(((parsed && parsed.movimientos) || []).slice(0, 1).map(x => Object.assign({}, x, { tipo: 'gasto' })), caption, today), getPerfil_(from));
+  if (!movs.length) {
+    send_(from, parsed && parsed.intencion === 'otro' && parsed.respuesta ? parsed.respuesta : 'No encontré el total en la foto. Escríbeme el gasto, por ejemplo: "mercado 85 mil".', c);
+    return 'foto sin monto';
+  }
+  const saved = saveMovements_(from, movs, country, '[foto] ' + caption, m.id, 'foto');
+  updateUser_(from, { ultimo_mov_id: saved[0].id, ultimo_mov_ts: new Date().toISOString() });
+  send_(from, 'Leí tu recibo:\n' + confirmText_(saved, country, today) + budgetText_(from, saved, getPerfil_(from), country, today), c);
+  return 'foto registrada';
+}
+
+/** Descarga una imagen de WhatsApp: primero pide su enlace temporal y luego el archivo (ambos con el token). */
+function downloadMedia_(id, c) {
+  if (!/^\d{5,30}$/.test(String(id || ''))) return null;
+  const auth = { Authorization: 'Bearer ' + c.WA_TOKEN };
+  const meta = UrlFetchApp.fetch('https://graph.facebook.com/' + c.GRAPH_VERSION + '/' + id, { headers: auth, muteHttpExceptions: true });
+  if (meta.getResponseCode() !== 200) throw new Error('WhatsApp respondió ' + meta.getResponseCode() + ' al pedir la foto');
+  const info = JSON.parse(meta.getContentText());
+  if (['image/jpeg', 'image/png', 'image/webp'].indexOf(info.mime_type) === -1) return { error: 'tipo' };
+  if (Number(info.file_size) > 3.7e6) return { error: 'peso' };
+  const file = UrlFetchApp.fetch(info.url, { headers: auth, muteHttpExceptions: true });
+  if (file.getResponseCode() !== 200) throw new Error('WhatsApp respondió ' + file.getResponseCode() + ' al descargar la foto');
+  return { mime: info.mime_type, data: Utilities.base64Encode(file.getBlob().getBytes()) };
+}
+
+/* ---------- Suscripción: activación, acceso y modo consulta ---------- */
+
+/** Con PAGOS_URL configurado, el bot solo registra para números con suscripción activa (o en BETA_NUMEROS). */
+function gated_(c) { return !!String(c.PAGOS_URL || '').trim(); }
+function isBeta_(waId, c) { return String(c.BETA_NUMEROS || '').split(/[\s,;]+/).filter(Boolean).indexOf(String(waId)) > -1; }
+function renewUrl_(c) { return c.RENOVAR_URL || String(c.SITE_URL).replace(/\/$/, '') + '/#precios'; }
+function contact_(c) { return c.CONTACTO ? ' (' + c.CONTACTO + ')' : ''; }
+
+/** Pregunta al backend de pagos (apps-script/Code.gs) el estado de una clave: activa, vencida o invalida. */
+function licenseStatus_(key, c) {
+  const url = String(c.PAGOS_URL).trim();
+  const resp = UrlFetchApp.fetch(url + (url.indexOf('?') > -1 ? '&' : '?') + 'action=licencia&key=' + encodeURIComponent(key), { muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) throw new Error('Pagos respondió ' + resp.getResponseCode());
+  const j = JSON.parse(resp.getContentText());
+  if (j.ok) return 'activa';
+  if (j.estado === 'vencida' || j.estado === 'invalida') return j.estado;
+  throw new Error('Pagos no pudo validar la clave: ' + (j.error || 'sin detalle'));
+}
+
+/**
+ * Acceso del número: libre (sin cobro configurado o beta), activa, vencida o ninguna (sin suscripción).
+ * La clave se revisa como máximo cada 12 horas; si el servicio de pagos falla, se conserva el último estado.
+ */
+function accessOf_(user, c, force) {
+  if (!gated_(c) || isBeta_(user.wa_id, c)) return 'libre';
+  if (!user.licencia) return user.acceso === 'vencida' ? 'vencida' : 'ninguna';
+  const fresh = user.acceso_revisado && Date.now() - new Date(user.acceso_revisado).getTime() < 12 * 3600e3;
+  if (fresh && !force && user.acceso) return user.acceso;
+  let st;
+  try { st = licenseStatus_(user.licencia, c); } catch (err) { logError_(err, 'licencia ' + user.wa_id); return user.acceso || 'activa'; }
+  user._revisada = true;
+  const estado = st === 'activa' ? 'activa' : 'vencida';
+  const patch = { acceso: estado, acceso_revisado: new Date().toISOString() };
+  if (estado === 'vencida' && (user.acceso !== 'vencida' || !user.vence)) patch.vence = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd');
+  if (estado === 'activa') patch.vence = '';
+  updateUser_(user.wa_id, patch);
+  Object.assign(user, patch);
+  return estado;
+}
+
+/** Último día de consulta: fecha de vencimiento + DIAS_CONSULTA. */
+function consultaHasta_(user, c) {
+  if (!user.vence) return '';
+  const d = new Date(String(user.vence).slice(0, 10) + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + Number(c.DIAS_CONSULTA || 90));
+  return d.toISOString().slice(0, 10);
+}
+
+function dateLong_(iso) { return iso ? Number(iso.slice(8, 10)) + ' de ' + MONTHS[Number(iso.slice(5, 7)) - 1] + ' de ' + iso.slice(0, 4) : ''; }
+
+function activate_(from, key, profileName, c) {
+  let st;
+  try { st = licenseStatus_(key, c); } catch (err) { logError_(err, 'activar'); send_(from, 'No pude revisar tu código en este momento. Intenta de nuevo en unos minutos.', c); return 'activar: error'; }
+  if (st !== 'activa') {
+    send_(from, st === 'vencida'
+      ? 'Ese código es de una suscripción que ya terminó. Puedes renovarla aquí: ' + renewUrl_(c) + '\nLuego escríbeme *activar* con tu nuevo código.'
+      : 'No reconozco ese código. Cópialo tal como aparece en tu correo de bienvenida' + (c.CONTACTO ? ' o escríbenos a ' + c.CONTACTO : '') + '.', c);
+    return 'activar: ' + st;
+  }
+  const other = rowsToObjects_(usersSheet_().getDataRange().getValues(), USER_COLS)
+    .filter(u => String(u.licencia).toUpperCase() === key.toUpperCase() && String(u.wa_id) !== String(from))[0];
+  if (other) {
+    send_(from, 'Ese código ya está activo en otro número de WhatsApp. Si cambiaste de número, escríbenos' + (c.CONTACTO ? ' a ' + c.CONTACTO : ' respondiendo el correo de bienvenida') + ' y lo pasamos a este.', c);
+    return 'activar: en otro número';
+  }
+  const patch = { licencia: key, acceso: 'activa', acceso_revisado: new Date().toISOString(), vence: '' };
+  const user = getUser_(from);
+  if (!user) {
+    const guess = countryFromPhone_(from);
+    createUser_(from, profileName, guess);
+    updateUser_(from, patch);
+    send_(from, '✓ Tu suscripción a ' + c.PREMIUM_NAME + ' quedó activa en este número.\n\n' + welcomeText_(profileName, guess, c), c);
+    return 'activado';
+  }
+  updateUser_(from, patch);
+  send_(from, '✓ Tu suscripción a ' + c.PREMIUM_NAME + ' quedó activa' + (user.acceso === 'vencida' || user.acceso === 'ninguna' ? ' de nuevo. Tus registros siguen aquí.' : '.') + ' Escríbeme tus gastos cuando quieras.', c);
+  return 'activado';
+}
+
+function welcomeText_(profileName, guess, c) {
+  return '¡Hola' + (profileName ? ', ' + String(profileName).split(' ')[0] : '') + '! Soy el asistente de ' + c.BRAND_NAME + '. ' +
+    (guess ? 'Registraré tus cifras en ' + guess.currency + ' (' + guess.name + '). Si vives en otro país, escríbeme su nombre.\n\n' : 'Para usar la moneda correcta, escríbeme tu país.\n\n') +
+    HELP + '\n\nCada lunes te enviaré el resumen de tu semana (escribe *resumen no* si no lo quieres).';
+}
+
+function inviteText_(c) {
+  return '¡Hola! Soy el asistente de ' + c.BRAND_NAME + '. Para registrar tus gastos aquí necesitas ' + c.PREMIUM_NAME + ': ' + renewUrl_(c) +
+    '\n\nSi ya te suscribiste, toca el botón *Activar mi WhatsApp* del correo de bienvenida o escríbeme *activar* seguido de tu código.';
+}
+
+function readOnlyText_(user, access, c) {
+  const link = userLink_(user, c);
+  if (access === 'vencida' && user.vence) {
+    return 'Tu suscripción a ' + c.PREMIUM_NAME + ' terminó el ' + dateLong_(String(user.vence).slice(0, 10)) + ', así que ya no puedo anotar movimientos. ' +
+      'Tu tablero sigue disponible para consulta hasta el ' + dateLong_(consultaHasta_(user, c)) + ': ' + link + '\nDespués borraremos tus datos.\n\n' +
+      'Para seguir registrando, renueva aquí: ' + renewUrl_(c) + ' y escríbeme *activar* con tu nuevo código.';
+  }
+  return 'Para registrar movimientos necesitas ' + c.PREMIUM_NAME + ': ' + renewUrl_(c) + '\nTus registros anteriores siguen en tu tablero: ' + link +
+    '\n\nSi ya te suscribiste, escríbeme *activar* seguido de tu código.';
+}
+
+/** Envía un aviso como máximo una vez cada 6 horas por número (para no gastar mensajes). */
+function noticeOnce_(to, kind, text, c) {
+  const cache = CacheService.getScriptCache();
+  const k = 'aviso_' + kind + '_' + to;
+  if (cache.get(k)) return;
+  cache.put(k, '1', 21600);
+  send_(to, text, c);
 }
 
 /** Cómo va el presupuesto de las categorías que se acaban de registrar (solo si tienen presupuesto). */
@@ -549,6 +770,159 @@ function categoryText_(from, cat, country, today) {
   return cat.name + ' en ' + monthName_(month) + ': ' + fmtMoney_(total, country) + ' en ' + movs.length + (movs.length === 1 ? ' movimiento.' : ' movimientos.');
 }
 
+/* ---------- Resumen semanal ---------- */
+
+/** Suma días a una fecha YYYY-MM-DD. */
+function addDays_(iso, k) { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + k); return d.toISOString().slice(0, 10); }
+
+/**
+ * Cifras de la última semana completa (lunes a domingo antes de hoy) y de la anterior.
+ * Validado en Python (tests/validate_bot.py).
+ */
+function weekStats_(movs, today) {
+  const dow = (new Date(today + 'T12:00:00Z').getUTCDay() + 6) % 7; // 0 = lunes
+  const hasta = addDays_(today, -dow - 1), desde = addDays_(hasta, -6);
+  const prevDesde = addDays_(desde, -7), prevHasta = addDays_(desde, -1);
+  const g = movs.filter(m => m.tipo === 'gasto');
+  const week = g.filter(m => m.fecha >= desde && m.fecha <= hasta);
+  const prev = g.filter(m => m.fecha >= prevDesde && m.fecha <= prevHasta);
+  const porCategoria = {};
+  week.forEach(m => { porCategoria[m.categoria] = (porCategoria[m.categoria] || 0) + Number(m.monto); });
+  const gasto = round2_(week.reduce((a, m) => a + Number(m.monto), 0));
+  const anterior = round2_(prev.reduce((a, m) => a + Number(m.monto), 0));
+  const top = Object.keys(porCategoria).sort((a, b) => porCategoria[b] - porCategoria[a] || (a < b ? -1 : 1))[0] || null;
+  return { desde: desde, hasta: hasta, gasto: gasto, n: week.length, anterior: anterior, cambio: anterior > 0 ? (gasto - anterior) / anterior : null,
+    top: top ? { categoria: top, monto: round2_(porCategoria[top]) } : null };
+}
+
+/** Presupuesto del mes en curso: categorías excedidas y en alerta (≥ 80 %). */
+function monthBudget_(movs, perfil, today) {
+  const pres = perfil.presupuestos || {};
+  const ids = Object.keys(pres).filter(k => Number(pres[k]) > 0);
+  const spent = summarize_(movs.filter(m => String(m.fecha).slice(0, 7) === today.slice(0, 7))).porCategoria;
+  return { definido: ids.length > 0, excedidas: ids.filter(k => (spent[k] || 0) > Number(pres[k])), alerta: ids.filter(k => (spent[k] || 0) <= Number(pres[k]) && (spent[k] || 0) / Number(pres[k]) >= BUDGET_WARN) };
+}
+
+const SHORT_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const shortDate_ = iso => Number(iso.slice(8, 10)) + ' ' + SHORT_MONTHS[Number(iso.slice(5, 7)) - 1];
+const joinNames_ = ids => { const n = ids.map(k => categoryById_(k).name); return n.length > 1 ? n.slice(0, -1).join(', ') + ' y ' + n[n.length - 1] : n[0]; };
+
+/**
+ * Texto del resumen semanal. Es el mismo de la plantilla de Meta (README): los {{n}} se llenan con weeklyParams_.
+ * Meta no acepta saltos de línea dentro de los parámetros, por eso cada uno es una frase corta.
+ */
+const WEEKLY_TEMPLATE = 'Hola {{1}}, este es tu resumen de la semana del {{2}}: gastaste {{3}} en {{4}} registros. Frente a la semana anterior: {{5}}. Donde más gastaste: {{6}}. Presupuesto del mes: {{7}}. Escribe *tablero* para ver el detalle o *resumen no* si no quieres recibir este mensaje.';
+
+function weeklyParams_(user, st, bud, country) {
+  const pctTxt = x => Math.round(Math.abs(x) * 100) + ' %';
+  return [
+    String(user.nombre || '').split(' ')[0] || 'de nuevo',
+    shortDate_(st.desde) + ' al ' + shortDate_(st.hasta),
+    fmtMoney_(st.gasto, country),
+    String(st.n),
+    st.cambio === null ? 'sin gastos para comparar' : Math.abs(st.cambio) < 0.005 ? 'igual' : pctTxt(st.cambio) + (st.cambio > 0 ? ' más' : ' menos'),
+    st.top ? categoryById_(st.top.categoria).name + ' (' + fmtMoney_(st.top.monto, country) + ')' : 'sin gastos',
+    !bud.definido ? 'aún no lo defines; puedes hacerlo en tu tablero' : bud.excedidas.length ? 'te pasaste en ' + joinNames_(bud.excedidas)
+      : bud.alerta.length ? 'vas por encima del 80 % en ' + joinNames_(bud.alerta) : 'todo dentro de lo planeado'
+  ];
+}
+
+function fillTemplate_(tpl, params) { return tpl.replace(/\{\{(\d+)\}\}/g, (_, i) => params[Number(i) - 1]); }
+
+function sendTemplate_(to, name, lang, params, c) {
+  if (!c.WA_TOKEN || !c.WA_PHONE_NUMBER_ID) { console.log('[sin WhatsApp] plantilla ' + name + ' → ' + to + ': ' + params.join(' | ')); return true; }
+  const resp = UrlFetchApp.fetch('https://graph.facebook.com/' + c.GRAPH_VERSION + '/' + c.WA_PHONE_NUMBER_ID + '/messages', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + c.WA_TOKEN },
+    payload: JSON.stringify({ messaging_product: 'whatsapp', to: String(to), type: 'template',
+      template: { name: name, language: { code: lang }, components: [{ type: 'body', parameters: params.map(p => ({ type: 'text', text: String(p).replace(/\s+/g, ' ').slice(0, 200) })) }] } }),
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() >= 300) { logError_(new Error('Plantilla respondió ' + resp.getResponseCode()), resp.getContentText().slice(0, 500)); return false; }
+  return true;
+}
+
+/**
+ * Envía el resumen de la semana anterior a quien tenga acceso y no lo haya desactivado.
+ * Se ejecuta cada hora (instalarTareas) y actúa de lunes a miércoles desde RESUMEN_HORA, hora local de cada persona;
+ * cada semana se envía una sola vez. Si la persona escribió en las últimas 24 h va como mensaje normal (sin costo de plantilla).
+ */
+function enviarResumenes_(c, deadline) {
+  const users = rowsToObjects_(usersSheet_().getDataRange().getValues(), USER_COLS);
+  const byUser = {};
+  rowsToObjects_(movSheet_().getDataRange().getValues(), MOV_COLS).forEach(m => {
+    (byUser[String(m.wa_id)] = byUser[String(m.wa_id)] || []).push({ fecha: String(m.fecha), tipo: m.tipo, monto: Number(m.monto), categoria: m.categoria });
+  });
+  let sent = 0;
+  users.forEach(u => {
+    if (Date.now() > deadline || String(u.resumen_semanal) === 'no') return;
+    const country = countryById_(u.pais) || countryFromPhone_(u.wa_id) || countryById_('US');
+    const today = Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd');
+    const dow = (new Date(today + 'T12:00:00Z').getUTCDay() + 6) % 7;
+    const hour = Number(Utilities.formatDate(new Date(), country.tz, 'H'));
+    if (dow > 2 || (dow === 0 && hour < Number(c.RESUMEN_HORA))) return;
+    const movs = byUser[String(u.wa_id)] || [];
+    const st = weekStats_(movs, today);
+    if (String(u.resumen_enviado) === st.desde) return;
+    const access = accessOf_(u, c);
+    if (u._revisada) Utilities.sleep(1100); // límite de la API de licencias: 60 por minuto
+    if (access !== 'activa' && access !== 'libre') return;
+    // Sin movimientos en las últimas dos semanas no se envía nada (y no se cobra)
+    if (!movs.some(m => m.fecha >= addDays_(st.hasta, -13) && m.fecha <= today)) { updateUser_(u.wa_id, { resumen_enviado: st.desde }); return; }
+    const params = weeklyParams_(u, st, monthBudget_(movs, getPerfil_(u.wa_id), today), country);
+    const recent = u.ultimo_msg_ts && Date.now() - new Date(u.ultimo_msg_ts).getTime() < 23.5 * 3600e3;
+    let ok = false;
+    if (recent) { send_(u.wa_id, fillTemplate_(WEEKLY_TEMPLATE, params), c); ok = true; }
+    else if (c.WA_PLANTILLA_RESUMEN) ok = sendTemplate_(u.wa_id, c.WA_PLANTILLA_RESUMEN, c.WA_PLANTILLA_IDIOMA || 'es', params, c);
+    if (ok || !c.WA_PLANTILLA_RESUMEN) updateUser_(u.wa_id, { resumen_enviado: st.desde });
+    if (ok) sent++;
+  });
+  return sent;
+}
+
+/**
+ * Revisa las suscripciones que no se han revisado en 12 horas y borra los datos de quienes llevan
+ * más de DIAS_CONSULTA días con la suscripción terminada.
+ */
+function revisarSuscripciones_(c, deadline) {
+  if (!gated_(c)) return { revisadas: 0, borradas: 0 };
+  const today = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd');
+  let revisadas = 0, borradas = 0;
+  rowsToObjects_(usersSheet_().getDataRange().getValues(), USER_COLS).forEach(u => {
+    if (Date.now() > deadline || isBeta_(u.wa_id, c)) return;
+    const access = accessOf_(u, c);
+    if (u._revisada) { revisadas++; Utilities.sleep(1100); }
+    if (access === 'vencida' && u.vence && consultaHasta_(u, c) < today) {
+      deleteUserData_(u.wa_id);
+      borradas++;
+      console.log('Datos borrados: suscripción terminada el ' + String(u.vence).slice(0, 10));
+    }
+  });
+  return { revisadas: revisadas, borradas: borradas };
+}
+
+/** Tarea de cada hora (instalarTareas): revisa suscripciones y envía los resúmenes semanales. */
+function tareasProgramadas() {
+  const c = cfg_();
+  const deadline = Date.now() + 4.5 * 60000; // Apps Script corta a los 6 minutos
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try {
+    const r = revisarSuscripciones_(c, deadline);
+    const n = enviarResumenes_(c, deadline);
+    console.log('Suscripciones revisadas: ' + r.revisadas + ' · datos borrados: ' + r.borradas + ' · resúmenes enviados: ' + n);
+  } catch (err) { logError_(err, 'tareas programadas'); }
+  finally { lock.releaseLock(); }
+}
+
+/** Ejecútalo una vez: programa tareasProgramadas() cada hora. */
+function instalarTareas() {
+  ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'tareasProgramadas').forEach(t => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('tareasProgramadas').timeBased().everyHours(1).create();
+  console.log('Listo: la revisión de suscripciones y el resumen semanal corren cada hora.');
+}
+
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 function monthName_(ym) { return MONTHS[Number(ym.slice(5, 7)) - 1] + ' ' + ym.slice(0, 4); }
 
@@ -568,7 +942,8 @@ function fmtMoney_(n, country) {
  * 8. DATOS (Google Sheets)
  * ============================================================ */
 
-const USER_COLS = ['wa_id', 'nombre', 'pais', 'moneda', 'token', 'estado', 'creado', 'ultimo_mov_id', 'ultimo_mov_ts', 'mensajes_hoy', 'fecha_conteo'];
+const USER_COLS = ['wa_id', 'nombre', 'pais', 'moneda', 'token', 'estado', 'creado', 'ultimo_mov_id', 'ultimo_mov_ts', 'mensajes_hoy', 'fecha_conteo',
+  'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy'];
 const MOV_COLS = ['id', 'wa_id', 'fecha', 'tipo', 'monto', 'moneda', 'categoria', 'descripcion', 'texto', 'msg_id', 'creado', 'fuente'];
 
 function db_() {
@@ -582,7 +957,13 @@ function sheet_(name, header) {
   if (!sh) { sh = ss.insertSheet(name); sh.appendRow(header); }
   return sh;
 }
-const usersSheet_ = () => sheet_('Usuarios', USER_COLS);
+/** La hoja Usuarios de versiones anteriores recibe las columnas nuevas al final. */
+function usersSheet_() {
+  const sh = sheet_('Usuarios', USER_COLS);
+  const n = sh.getLastColumn();
+  for (let j = n; j < USER_COLS.length; j++) sh.getRange(1, j + 1).setValue(USER_COLS[j]);
+  return sh;
+}
 const movSheet_ = () => sheet_('Movimientos', MOV_COLS);
 
 function rowsToObjects_(values, cols) {
@@ -598,8 +979,9 @@ function getUserByToken_(token) {
 }
 
 function createUser_(waId, name, country) {
-  const u = { wa_id: String(waId), nombre: String(name || '').slice(0, 60), pais: country ? country.id : '', moneda: country ? country.currency : '', token: newToken_(), estado: 'activo', creado: new Date().toISOString(), ultimo_mov_id: '', ultimo_mov_ts: '', mensajes_hoy: 0, fecha_conteo: '' };
-  usersSheet_().appendRow(USER_COLS.map(k => (k === 'wa_id' || k === 'token' ? "'" + u[k] : u[k])));
+  const u = { wa_id: String(waId), nombre: String(name || '').slice(0, 60), pais: country ? country.id : '', moneda: country ? country.currency : '', token: newToken_(), estado: 'activo', creado: new Date().toISOString(), ultimo_mov_id: '', ultimo_mov_ts: '', mensajes_hoy: 0, fecha_conteo: '',
+    licencia: '', acceso: '', acceso_revisado: '', vence: '', resumen_semanal: 'si', resumen_enviado: '', ultimo_msg_ts: '', fotos_hoy: '' };
+  usersSheet_().appendRow(USER_COLS.map(k => (['wa_id', 'token'].indexOf(k) > -1 ? "'" + u[k] : u[k])));
   return u;
 }
 
@@ -608,7 +990,7 @@ function updateUser_(waId, patch) {
   const u = getUser_(waId);
   if (!u) return;
   // Los textos que parecen fechas o números se guardan con apóstrofo para que la hoja no los convierta.
-  const asText = ['token', 'fecha_conteo', 'ultimo_mov_id', 'pais', 'moneda', 'estado'];
+  const asText = ['token', 'fecha_conteo', 'ultimo_mov_id', 'pais', 'moneda', 'estado', 'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy'];
   Object.keys(patch).forEach(k => {
     const j = USER_COLS.indexOf(k);
     if (j > -1) sh.getRange(u._row, j + 1).setValue(asText.indexOf(k) > -1 && patch[k] !== '' ? "'" + patch[k] : patch[k]);
@@ -619,7 +1001,7 @@ function updateUser_(waId, patch) {
 function countUsage_(user, c) {
   const today = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd');
   const n = user.fecha_conteo === today ? Number(user.mensajes_hoy) + 1 : 1;
-  updateUser_(user.wa_id, { mensajes_hoy: n, fecha_conteo: today });
+  updateUser_(user.wa_id, { mensajes_hoy: n, fecha_conteo: today, ultimo_msg_ts: new Date().toISOString() });
   if (n > Number(c.MAX_MENSAJES_DIA)) {
     if (n === Number(c.MAX_MENSAJES_DIA) + 1) send_(user.wa_id, 'Llegaste al máximo de mensajes de hoy. Mañana seguimos.', c);
     return false;
@@ -723,6 +1105,8 @@ function cleanPerfil_(p) {
 function savePerfilFromWeb_(token, perfil) {
   const user = getUserByToken_(token);
   if (!user) return { ok: false, error: 'Este enlace no es válido o fue cambiado.' };
+  const acc = accessOf_(user, cfg_());
+  if (acc === 'vencida' || acc === 'ninguna') return { ok: false, error: 'Tu tablero está en modo consulta: renueva tu suscripción para guardar cambios.' };
   const clean = cleanPerfil_(perfil);
   clean.aprendidas = getPerfil_(user.wa_id).aprendidas || {};
   savePerfil_(user.wa_id, clean);
@@ -742,7 +1126,13 @@ function deleteUserData_(waId) {
   if (pr) perfilSheet_().deleteRow(pr._row);
 }
 
-/** Lo que ve el sitio en "Mis movimientos". */
+/** Estado de la suscripción para el tablero: activa/libre o consulta (vencida/ninguna) con sus fechas. */
+function accessPayload_(user, c) {
+  const estado = accessOf_(user, c);
+  return { estado: estado, vence: estado === 'vencida' ? String(user.vence || '').slice(0, 10) : '', hasta: estado === 'vencida' ? consultaHasta_(user, c) : '', renovar: renewUrl_(c) };
+}
+
+/** Lo que ve el sitio en el tablero. */
 function movementsFor_(token, mes) {
   const user = getUserByToken_(token);
   if (!user) return { ok: false, error: 'Este enlace no es válido o fue cambiado. Escribe "tablero" al bot para recibir el actual.' };
@@ -757,6 +1147,7 @@ function movementsFor_(token, mes) {
     usuario: { nombre: String(user.nombre || '').split(' ')[0], pais: country.id, moneda: country.currency },
     mes: month, meses: months.slice(0, 24), hoy: Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd'),
     perfil: publicPerfil_(getPerfil_(user.wa_id)),
+    acceso: accessPayload_(user, cfg_()),
     historico: monthlyHistory_(all).slice(-60),
     movimientos: all.filter(m => m.fecha.slice(0, 7) === month).map(m => ({ id: m.id, fecha: m.fecha, tipo: m.tipo, monto: m.monto, categoria: m.categoria, descripcion: m.descripcion }))
   };

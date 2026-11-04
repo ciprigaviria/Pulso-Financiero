@@ -162,7 +162,8 @@ assert.ok(post(order(worst), 'ls').ignored); assert.equal(sent.length, 1);
 orderStatus = 'paid'; orderStore = 99;
 assert.equal(post(order(worst), 'ls').ok, false); assert.equal(sent.length, 1);
 orderStore = 42; rows.Pedidos = [['h']];
-post(order(null), 'ls'); assert.ok(sent[1].subject.includes('falta un paso')); assert.ok(!sent[1].attachments);
+post(order(null), 'ls'); assert.ok(sent[1].subject.includes('activa tu WhatsApp')); assert.ok(!sent[1].attachments);
+assert.ok(sent[1].htmlBody.includes('modo consulta durante 90 días') && !sent[1].htmlBody.includes('navegador'));
 assert.ok(sent[1].htmlBody.includes('?licencia=ABCD-1234-EFGH-5678') && sent[1].htmlBody.includes('/prueba-personal/'));
 assert.ok(post({ meta: { event_name: 'subscription_created' }, data: { id: '1' } }, 'ls').ignored);
 // Sin clave (producto sin licencias activadas): igual envía, avisa y registra el error

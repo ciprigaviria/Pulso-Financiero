@@ -19,12 +19,12 @@ export default function Privacidad() {
         <li><strong>Respuestas del test:</strong> rangos de comportamiento financiero, país, rango de edad, tipo de ingreso y si tienes personas a cargo. Nunca pedimos montos, nombre ni documento de identidad.</li>
         <li><strong>Correo electrónico:</strong> solo si lo escribes para recibir tu resumen, te inscribes en la beta o te suscribes a Premium.</li>
         <li><strong>Comentarios:</strong> si nos escribes desde el tablero, guardamos tu comentario y el nombre que pongas. Solo lo publicamos si marcas que nos autorizas.</li>
-        <li><strong>Asistente de WhatsApp (Premium):</strong> tu número de WhatsApp, el nombre de tu perfil, el texto de los mensajes que le envías y los movimientos que resultan (fecha, monto, categoría y descripción).</li>
+        <li><strong>Asistente de WhatsApp (Premium):</strong> tu número de WhatsApp, el nombre de tu perfil, el texto de los mensajes que le envías, las fotos de recibos que le mandas y los movimientos que resultan (fecha, monto, categoría y descripción). También guardamos el código de tu suscripción para saber si está activa.</li>
         <li><strong>Datos de compra:</strong> los procesa Lemon Squeezy como vendedor registrado; nosotros recibimos tu nombre, correo y el estado del pedido, nunca los datos de tu tarjeta.</li>
       </ul>
       <p>El puntaje se calcula en tu navegador. Si no dejas tu correo ni compras, tus respuestas no se envían a nuestros servidores.</p>
       <h2>Cómo tratamos tus movimientos</h2>
-      <p>Para registrar lo que escribes al asistente, el mensaje pasa por WhatsApp (Meta), por nuestro servicio en Google y por un modelo de inteligencia artificial (Anthropic) que lo interpreta. Los movimientos se guardan en nuestra base de datos para mostrarte tu tablero. Con el mensaje “borrar mis datos” eliminas tus movimientos y tu enlace personal de inmediato.</p>
+      <p>Para registrar lo que escribes al asistente, el mensaje pasa por WhatsApp (Meta), por nuestro servicio en Google y por un modelo de inteligencia artificial (Anthropic) que lo interpreta. Los movimientos se guardan en nuestra base de datos para mostrarte tu tablero. Las fotos de recibos se envían al modelo para leer el total y no las guardamos: solo queda el movimiento. Con el mensaje “borrar mis datos” eliminas tus movimientos y tu enlace personal de inmediato. Si tu suscripción termina, tu tablero queda en modo consulta durante 90 días y después borramos tus datos.</p>
       <p>Las cifras que escribes directamente en el tablero (ahorros y deudas, por ejemplo) se guardan en el almacenamiento local de tu navegador. Para validar tu acceso, tu navegador envía tu clave a nuestro servicio, que la verifica con Lemon Squeezy; esa verificación no incluye tus cifras.</p>
       <h2>Para qué los usamos</h2>
       <ul>

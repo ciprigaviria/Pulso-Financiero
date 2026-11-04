@@ -13,6 +13,7 @@ function makeEnv(extraProps: Record<string, string> = {}) {
   const sheets: Record<string, any[][]> = {};
   const sent: { to: string; body: string }[] = [];
   const llmCalls: any[] = [];
+  const pagosCalls: string[] = [];
   let uuid = 0;
   const props: Record<string, string> = { DB_ID: 'db', RELAY_SECRET: 'secreto', WA_TOKEN: 'wa', WA_PHONE_NUMBER_ID: '111', SITE_URL: 'https://pulso.test', ...extraProps };
   const cache: Record<string, string> = {};
@@ -27,22 +28,45 @@ function makeEnv(extraProps: Record<string, string> = {}) {
   });
   const env: any = {
     llm: null as null | ((body: any) => any),
+    media: {} as Record<string, { mime: string; size: number }>,
+    pagos: (_k: string): any => ({ ok: false, estado: 'invalida' }),
+    hour: '10',
     console: { log() {}, error() {} },
     PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({ ...props }), getProperty: (k: string) => props[k], setProperty: (k: string, v: string) => { props[k] = v; } }) },
     SpreadsheetApp: { openById: () => ({ getSheetByName: (n: string) => (sheets[n] ? sheet(n) : null), insertSheet: (n: string) => { sheets[n] = []; return sheet(n); } }) },
     CacheService: { getScriptCache: () => ({ get: (k: string) => cache[k] || null, put: (k: string, v: string) => { cache[k] = v; } }) },
-    LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
+    LockService: { getScriptLock: () => ({ waitLock() {}, tryLock: () => true, releaseLock() {} }) },
     ContentService: { createTextOutput: (t: string) => ({ setMimeType: () => JSON.parse(t), text: t }), MimeType: { JSON: 'json' } },
     Utilities: {
-      formatDate: (_d: Date, _tz: string, f: string) => (f === 'yyyy-MM' ? TODAY.slice(0, 7) : TODAY),
+      formatDate: (_d: Date, _tz: string, f: string) => (f === 'yyyy-MM' ? (env.today || TODAY).slice(0, 7) : f === 'H' ? env.hour : (env.today || TODAY)),
+      base64Encode: (b: number[]) => Buffer.from(b).toString('base64'),
+      sleep() {},
       getUuid: () => { uuid++; return (uuid.toString(16).padStart(8, '0') + '-aaaa-4bbb-8ccc-' + uuid.toString(16).padStart(12, '0')); },
     },
     UrlFetchApp: {
       fetch: (url: string, o: any) => {
-        if (url.startsWith('https://graph.facebook.com/')) {
+        if (url.startsWith('https://graph.facebook.com/') && url.endsWith('/messages')) {
           assert.ok(url.includes('/v26.0/111/messages')); assert.equal(o.headers.Authorization, 'Bearer wa');
-          const p = JSON.parse(o.payload); sent.push({ to: p.to, body: p.text.body });
+          const p = JSON.parse(o.payload);
+          sent.push({ to: p.to, body: p.type === 'template' ? 'PLANTILLA ' + p.template.name + ': ' + p.template.components[0].parameters.map((x: any) => x.text).join(' | ') : p.text.body });
           return { getResponseCode: () => 200, getContentText: () => '{}' };
+        }
+        const media = url.match(/^https:\/\/graph\.facebook\.com\/v26\.0\/(\d+)$/);
+        if (media) {
+          assert.equal(o.headers.Authorization, 'Bearer wa');
+          const m = env.media[media[1]];
+          if (!m) return { getResponseCode: () => 404, getContentText: () => '{}' };
+          return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ url: 'https://media.test/' + media[1], mime_type: m.mime, file_size: m.size }) };
+        }
+        if (url.startsWith('https://media.test/')) {
+          assert.equal(o.headers.Authorization, 'Bearer wa');
+          return { getResponseCode: () => 200, getBlob: () => ({ getBytes: () => [1, 2, 3] }) };
+        }
+        if (url.startsWith('https://pagos.test/exec?action=licencia&key=')) {
+          pagosCalls.push(decodeURIComponent(url.split('key=')[1]));
+          const r = env.pagos(decodeURIComponent(url.split('key=')[1]));
+          if (r === 'caido') return { getResponseCode: () => 500, getContentText: () => 'error' };
+          return { getResponseCode: () => 200, getContentText: () => JSON.stringify(r) };
         }
         if (url === 'https://api.anthropic.com/v1/messages') {
           const body = JSON.parse(o.payload); llmCalls.push(body);
@@ -55,18 +79,18 @@ function makeEnv(extraProps: Record<string, string> = {}) {
     },
   };
   vm.createContext(env);
-  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, monthlyHistory_, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
+  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, monthlyHistory_, weekStats_, monthBudget_, weeklyParams_, fillTemplate_, WEEKLY_TEMPLATE, tareasProgramadas, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
   const bot = env.__bot;
   bot.setup();
   let n = 0;
   const say = (from: string, text: string | null, extra: any = {}) => {
     sent.length = 0;
-    const msg = text === null ? { from, id: 'w' + ++n, type: 'audio' } : { from, id: extra.id || 'w' + ++n, type: 'text', text: { body: text } };
+    const msg = extra.image ? { from, id: 'w' + ++n, type: 'image', image: extra.image } : text === null ? { from, id: 'w' + ++n, type: 'audio' } : { from, id: extra.id || 'w' + ++n, type: 'text', text: { body: text } };
     const payload = { entry: [{ changes: [{ value: { metadata: { phone_number_id: extra.phoneId || '111' }, contacts: [{ wa_id: from, profile: { name: 'Ana María' } }], messages: [msg] } }] }] };
     const r = bot.doPost({ parameter: { k: extra.k ?? 'secreto' }, postData: { contents: JSON.stringify(payload) } });
     return { r, replies: sent.map((s) => s.body), all: sent.slice() };
   };
-  return { bot, sheets, sent, say, props, llmCalls, env };
+  return { bot, sheets, sent, say, props, llmCalls, pagosCalls, env };
 }
 
 const dumpIdx = process.argv.indexOf('--dump');
@@ -107,7 +131,14 @@ if (dumpIdx > -1) {
     const g = bot.summarize_(movs), w = summarizeMovements(movs as any);
     return { movs, gas: JSON.parse(JSON.stringify(g)), web: w };
   });
-  await new Promise((done) => process.stdout.write(JSON.stringify({ amountsCases, summaryCases }), done));
+  const day = (k: number) => new Date(Date.UTC(2026, 8, 15 + k)).toISOString().slice(0, 10);
+  const weekCases = Array.from({ length: 400 }, () => {
+    const movs = Array.from({ length: rand(60) }, () => ({ fecha: day(rand(90)), tipo: rand(5) === 0 ? 'ingreso' : 'gasto', monto: (rand(2e6) + 1) / 100, categoria: BOT_CATEGORIES[rand(12)].id }));
+    const today = day(14 + rand(76));
+    const pres = Object.fromEntries(BOT_CATEGORIES.slice(0, 12).filter(() => rand(3) === 0).map((c) => [c.id, (rand(5e5) + 1) / 100]));
+    return { movs, today, pres, week: JSON.parse(JSON.stringify(bot.weekStats_(movs, today))), budget: JSON.parse(JSON.stringify(bot.monthBudget_(movs, { presupuestos: pres }, today))) };
+  });
+  await new Promise((done) => process.stdout.write(JSON.stringify({ amountsCases, summaryCases, weekCases }), done));
   process.exit(0);
 }
 
@@ -171,7 +202,7 @@ if (dumpIdx > -1) {
   x = say(CO, 'gasté plata');
   assert.ok(x.replies[0].includes('No encontré un monto'));
   x = say(CO, null);
-  assert.ok(x.replies[0].includes('solo mensajes de texto'));
+  assert.ok(x.replies[0].includes('Entiendo mensajes de texto y fotos de recibos'));
   // Mensaje repetido por Meta: no se registra dos veces
   say(CO, 'pan 3.000', { id: 'repetido' }); const rows = sheets.Movimientos.length;
   x = say(CO, 'pan 3.000', { id: 'repetido' }); assert.equal(sheets.Movimientos.length, rows); assert.equal(x.replies.length, 0);
@@ -330,4 +361,187 @@ if (dumpIdx > -1) {
   const g = bot.doGet({ parameter: { action: 'tablero', t: 'no-existe' } });
   assert.equal(g.ok, false);
   console.log('✓ Histórico mensual idéntico en el bot y en el sitio (200 casos)');
+}
+
+// Utilidades para leer y escribir columnas de la hoja Usuarios en las pruebas
+const userRow = (sheets: any, waId: string) => sheets.Usuarios.find((r: any[]) => String(r[0]) === waId);
+const getU = (sheets: any, waId: string, k: string) => userRow(sheets, waId)?.[sheets.Usuarios[0].indexOf(k)];
+const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets, waId)[sheets.Usuarios[0].indexOf(k)] = v; };
+
+// ---- 10. Suscripción: activación con código, acceso, modo consulta y borrado a los 90 días ----
+{
+  const { say, sheets, bot, env, pagosCalls } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec', CONTACTO: 'hola@pulso.test' });
+  const A = '573001112233', B = '573004445566';
+  const KEY = 'AB12CD34-EF56-7890-AAAA-BBBBCCCCDDDD', KEY2 = 'NEW12345-0000-1111';
+  const st: Record<string, any> = { [KEY]: { ok: true, estado: 'activa' } };
+  env.pagos = (k: string) => st[k] ?? { ok: false, estado: 'invalida' };
+
+  let x = say(A, 'almuerzo 25 mil');
+  assert.ok(x.replies[0].includes('necesitas Pulso Premium: https://pulso.test/#precios'), x.replies[0]);
+  assert.equal(sheets.Usuarios.length, 1, 'sin suscripción no se crea el usuario');
+  x = say(A, 'taxi 10 mil'); assert.equal(x.replies.length, 0, 'la invitación no se repite');
+  x = say(A, 'activar ZZZZ9999ZZZZ'); assert.ok(x.replies[0].includes('No reconozco ese código') && x.replies[0].includes('hola@pulso.test'));
+  x = say(A, 'activar resumenes'); assert.equal(pagosCalls.at(-1), 'ZZZZ9999ZZZZ', 'una palabra sin dígitos no es un código');
+
+  x = say(A, 'activar ' + KEY);
+  assert.ok(x.replies[0].startsWith('✓ Tu suscripción a Pulso Premium quedó activa en este número.'), x.replies[0]);
+  assert.ok(x.replies[0].includes('Cada lunes te enviaré el resumen'));
+  assert.equal(getU(sheets, A, 'licencia'), KEY); assert.equal(getU(sheets, A, 'acceso'), 'activa');
+  x = say(A, 'almuerzo 25 mil'); assert.ok(x.replies[0].startsWith('✓ Gasto'), x.replies[0]);
+  const calls = pagosCalls.length;
+  say(A, 'taxi 12 mil'); assert.equal(pagosCalls.length, calls, 'no revisa la clave en cada mensaje');
+  x = say(B, 'activar ' + KEY); assert.ok(x.replies[0].includes('ya está activo en otro número'));
+  assert.equal(userRow(sheets, B), undefined);
+
+  const token = getU(sheets, A, 'token');
+  let g = bot.doGet({ parameter: { action: 'tablero', t: token } });
+  assert.equal(g.acceso.estado, 'activa');
+
+  // La suscripción termina: a las 12 h de la última revisión se consulta otra vez y queda en modo consulta
+  st[KEY] = { ok: false, estado: 'vencida' }; setU(sheets, A, 'acceso_revisado', '2026-11-01T00:00:00.000Z');
+  x = say(A, 'mercado 50 mil');
+  assert.ok(x.replies[0].includes('terminó el 4 de noviembre de 2026') && x.replies[0].includes('hasta el 2 de febrero de 2027'), x.replies[0]);
+  const nMovs = sheets.Movimientos.length; assert.equal(nMovs, 3);
+  x = say(A, 'pan 5 mil'); assert.equal(x.replies.length, 0); assert.equal(sheets.Movimientos.length, nMovs, 'en consulta no registra');
+  x = say(A, 'tablero'); assert.ok(x.replies[0].includes('modo consulta'));
+  x = say(A, 'resumen'); assert.ok(x.replies[0].includes('Tu mes hasta hoy'));
+  g = bot.doGet({ parameter: { action: 'tablero', t: token } });
+  assert.deepEqual([g.acceso.estado, g.acceso.vence, g.acceso.hasta], ['vencida', '2026-11-04', '2027-02-02']);
+  const web = bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t: token, perfil: { presupuestos: { comida: 1 } } }) } });
+  assert.equal(web.ok, false); assert.ok(web.error.includes('modo consulta'));
+
+  // Renueva con un código nuevo: vuelve a registrar y conserva sus datos
+  st[KEY2] = { ok: true, estado: 'activa' };
+  x = say(A, 'activar ' + KEY2); assert.ok(x.replies[0].includes('de nuevo. Tus registros siguen aquí'), x.replies[0]);
+  x = say(A, 'mercado 50 mil'); assert.ok(x.replies[0].startsWith('✓ Gasto'));
+  // Si el servicio de pagos falla, se conserva el acceso (no se bloquea a quien pagó)
+  st[KEY2] = 'caido'; setU(sheets, A, 'acceso_revisado', '2026-11-01T00:00:00.000Z');
+  x = say(A, 'pan 3 mil'); assert.ok(x.replies[0].startsWith('✓ Gasto'));
+
+  // Tarea programada: detecta el vencimiento y borra los datos pasados los 90 días
+  st[KEY2] = { ok: false, estado: 'vencida' }; setU(sheets, A, 'acceso_revisado', '2026-11-01T00:00:00.000Z');
+  env.today = '2027-01-10';
+  bot.tareasProgramadas();
+  assert.equal(getU(sheets, A, 'acceso'), 'vencida'); assert.equal(getU(sheets, A, 'vence'), '2027-01-10');
+  setU(sheets, A, 'vence', '2026-10-01');
+  bot.tareasProgramadas();
+  assert.equal(userRow(sheets, A), undefined, 'datos borrados tras 90 días en consulta');
+  assert.equal(sheets.Movimientos.length, 1);
+  env.today = undefined;
+
+  // Los números de la beta usan el bot sin suscripción
+  const beta = makeEnv({ PAGOS_URL: 'https://pagos.test/exec', BETA_NUMEROS: '573009990000' });
+  x = beta.say('573009990000', 'hola'); assert.ok(x.replies[0].includes('Soy el asistente'));
+  x = beta.say('573009990000', 'almuerzo 25 mil'); assert.ok(x.replies[0].startsWith('✓ Gasto'));
+  assert.equal(beta.pagosCalls.length, 0);
+  console.log('✓ Suscripción: invitación, activación con código, un número por código, modo consulta, renovación y borrado a los 90 días');
+}
+
+// ---- 11. Fotos de recibos ----
+{
+  const { say, sheets, env, llmCalls } = makeEnv({ ANTHROPIC_API_KEY: 'k', MAX_FOTOS_DIA: '2' });
+  const P = '573007778899';
+  say(P, 'hola');
+  env.media['123456'] = { mime: 'image/jpeg', size: 200000 };
+  env.llm = (body: any) => Array.isArray(body.messages[0].content) && body.messages[0].content[0].type === 'image'
+    ? { intencion: 'movimientos', movimientos: [{ tipo: 'gasto', monto: 84500, categoria: 'mercado', descripcion: 'Supermercado', fecha: '2026-11-02' }, { tipo: 'gasto', monto: 1, categoria: 'otros', descripcion: 'x' }] }
+    : null;
+  let x = say(P, null, { image: { id: '123456' } });
+  assert.ok(x.replies[0].startsWith('Leí tu recibo:\n✓ Gasto · Mercado · $ 84.500 — Supermercado (2026-11-02)'), x.replies[0]);
+  assert.equal(sheets.Movimientos.length, 2, 'una foto = un gasto');
+  assert.equal(sheets.Movimientos[1][11], 'foto');
+  assert.equal(llmCalls.at(-1).messages[0].content[0].source.data, Buffer.from([1, 2, 3]).toString('base64'));
+  assert.ok(llmCalls.at(-1).system.includes('TOTAL pagado'));
+  x = say(P, null, { image: { id: '123456', caption: 'mercado 90 mil' } });
+  assert.ok(x.replies[0].includes('$ 90.000'), 'el monto escrito en el texto manda');
+  x = say(P, null, { image: { id: '123456' } }); assert.ok(x.replies[0].includes('máximo de fotos'));
+  x = say(P, null, { image: { id: '123456' } }); assert.equal(x.replies.length, 0);
+
+  const e2 = makeEnv({ ANTHROPIC_API_KEY: 'k' });
+  e2.say(P, 'hola');
+  e2.env.media['777777'] = { mime: 'image/jpeg', size: 5e6 };
+  x = e2.say(P, null, { image: { id: '777777' } }); assert.ok(x.replies[0].includes('muy pesada'));
+  e2.env.media['888888'] = { mime: 'image/png', size: 1000 };
+  e2.env.llm = () => ({ intencion: 'otro', respuesta: 'No veo un recibo en la foto. Escríbeme el gasto.' });
+  x = e2.say(P, null, { image: { id: '888888' } }); assert.equal(x.replies[0], 'No veo un recibo en la foto. Escríbeme el gasto.');
+  x = e2.say(P, null, { image: { id: '999999' } }); assert.ok(x.replies[0].includes('No pude abrir la foto'));
+  const e3 = makeEnv({}); e3.say(P, 'hola');
+  x = e3.say(P, null, { image: { id: '123456' } }); assert.ok(x.replies[0].includes('no puedo leer fotos'));
+  console.log('✓ Fotos de recibos: descarga segura, total leído por la IA, el monto escrito manda, límite diario y errores claros');
+}
+
+// ---- 12. Resumen semanal ----
+{
+  const { say, sheets, bot, env, sent } = makeEnv({ WA_PLANTILLA_RESUMEN: 'resumen_semanal' });
+  const W = '573001010101';
+  say(W, 'hola');
+  say(W, 'ayuda');
+  const add = (fecha: string, tipo: string, monto: number, categoria: string) => sheets.Movimientos.push(['m' + fecha + monto, W, fecha, tipo, monto, 'COP', categoria, '', '', 'x' + fecha + monto, '', 'prueba']);
+  add('2026-10-27', 'gasto', 80000, 'mercado');
+  add('2026-11-03', 'gasto', 100000, 'mercado'); add('2026-11-05', 'gasto', 30000, 'comida'); add('2026-11-08', 'gasto', 20000, 'comida');
+  add('2026-11-06', 'ingreso', 500000, 'salario'); add('2026-11-09', 'gasto', 7000, 'transporte');
+  const token = getU(sheets, W, 'token');
+  bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t: token, perfil: { presupuestos: { comida: 40000 } } }) } });
+
+  env.today = '2026-11-09'; env.hour = '10';
+  sent.length = 0; bot.tareasProgramadas();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].body, 'Hola Ana, este es tu resumen de la semana del 2 nov al 8 nov: gastaste $ 150.000 en 3 registros. Frente a la semana anterior: 88 % más. Donde más gastaste: Mercado ($ 100.000). Presupuesto del mes: te pasaste en Restaurantes y domicilios. Escribe *tablero* para ver el detalle o *resumen no* si no quieres recibir este mensaje.');
+  sent.length = 0; bot.tareasProgramadas(); assert.equal(sent.length, 0, 'una vez por semana');
+
+  // Fuera de la ventana de 24 h: va con la plantilla aprobada por Meta
+  setU(sheets, W, 'resumen_enviado', ''); setU(sheets, W, 'ultimo_msg_ts', '2026-11-01T00:00:00.000Z');
+  sent.length = 0; bot.tareasProgramadas();
+  assert.equal(sent[0].body, 'PLANTILLA resumen_semanal: Ana | 2 nov al 8 nov | $ 150.000 | 3 | 88 % más | Mercado ($ 100.000) | te pasaste en Restaurantes y domicilios');
+
+  // Antes de la hora, después del miércoles, sin movimientos recientes o desactivado: no se envía
+  setU(sheets, W, 'resumen_enviado', '');
+  env.hour = '7'; sent.length = 0; bot.tareasProgramadas(); assert.equal(sent.length, 0);
+  env.hour = '10'; env.today = '2026-11-12'; bot.tareasProgramadas(); assert.equal(sent.length, 0);
+  env.today = '2026-12-07'; bot.tareasProgramadas(); assert.equal(sent.length, 0, 'sin movimientos en dos semanas');
+  env.today = undefined;
+  let x = say(W, 'resumen no'); assert.ok(x.replies[0].includes('ya no te enviaré'));
+  setU(sheets, W, 'resumen_enviado', ''); env.today = '2026-11-09'; sent.length = 0; bot.tareasProgramadas(); assert.equal(sent.length, 0);
+  env.today = undefined;
+  x = say(W, 'resumen si'); assert.ok(x.replies[0].includes('cada lunes'));
+
+  // Cifras: semana sin gastos previos y presupuesto sin definir
+  const st = bot.weekStats_([{ fecha: '2026-11-04', tipo: 'gasto', monto: 10, categoria: 'ocio' }], '2026-11-10');
+  assert.deepEqual(JSON.parse(JSON.stringify(st)), { desde: '2026-11-02', hasta: '2026-11-08', gasto: 10, n: 1, anterior: 0, cambio: null, top: { categoria: 'ocio', monto: 10 } });
+  const p = bot.weeklyParams_({ nombre: '' }, st, { definido: false, excedidas: [], alerta: [] }, bot.COUNTRIES.find((c: any) => c.id === 'MX'));
+  assert.deepEqual(JSON.parse(JSON.stringify(p)), ['de nuevo', '2 nov al 8 nov', '$10', '1', 'sin gastos para comparar', 'Entretenimiento y suscripciones ($10)', 'aún no lo defines; puedes hacerlo en tu tablero']);
+  assert.ok(!bot.fillTemplate_(bot.WEEKLY_TEMPLATE, p).includes('{{'));
+  console.log('✓ Resumen semanal: cifras de la semana, mensaje normal en la ventana de 24 h, plantilla fuera de ella, una vez por semana y opción de no recibirlo');
+}
+
+// ---- 13. Backend de pagos (apps-script/Code.gs): estado de la clave para el bot y enlace de activación ----
+{
+  const code = readFileSync(new URL('../apps-script/Code.gs', import.meta.url), 'utf8');
+  let ls: any = null, status = 200;
+  const props: Record<string, string> = { LS_STORE_ID: '9', CODIGOS_CORTESIA: 'PULSO-AAAA-1111', BOT_WHATSAPP: '+57 300 123 4567', SITE_URL: 'https://pulso.test' };
+  const cache: Record<string, string> = {};
+  const ctx: any = {
+    console: { log() {}, error() {} },
+    PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({ ...props }), getProperty: (k: string) => props[k] }) },
+    CacheService: { getScriptCache: () => ({ get: (k: string) => cache[k] || null, put: (k: string, v: string) => { cache[k] = v; } }) },
+    ContentService: { createTextOutput: (t: string) => ({ setMimeType: () => JSON.parse(t) }), MimeType: { JSON: 'json' } },
+    UrlFetchApp: { fetch: () => ({ getResponseCode: () => status, getContentText: () => JSON.stringify(ls) }) },
+    SpreadsheetApp: { openById: () => { throw new Error('sin hoja'); } },
+  };
+  vm.createContext(ctx);
+  vm.runInContext(code + '\n;globalThis.__pagos = { doGet, activationLink_, cfg_ };', ctx);
+  const P = ctx.__pagos;
+  const check = (key: string) => P.doGet({ parameter: { action: 'licencia', key } });
+  const lic = (st: string, valid: boolean, store = 9) => ({ valid, license_key: { key: 'k', status: st }, meta: { store_id: store, product_id: 1 } });
+  assert.equal(check('pulso-aaaa-1111').estado, 'activa');
+  ls = lic('active', true); assert.deepEqual(check('KEY-ACTIVA-1'), { ok: true, estado: 'activa' });
+  ls = lic('inactive', true); assert.equal(check('KEY-INACTIVA-1').estado, 'activa');
+  ls = lic('expired', false); assert.equal(check('KEY-VENCIDA-1').estado, 'vencida');
+  ls = lic('disabled', false); assert.equal(check('KEY-DESACT-1').estado, 'vencida');
+  ls = lic('active', true, 5); assert.equal(check('KEY-OTRA-TIENDA').estado, 'invalida');
+  ls = { valid: false, error: 'license_key not found.', license_key: null, meta: null }; assert.equal(check('KEY-NO-EXISTE').estado, 'invalida');
+  assert.equal(check('x').estado, 'invalida');
+  status = 503; assert.equal(check('KEY-CAIDO-001').estado, 'error', 'si Lemon Squeezy falla, el bot conserva el acceso');
+  assert.equal(P.activationLink_(P.cfg_(), 'AB12-CD34'), 'https://wa.me/573001234567?text=activar%20AB12-CD34');
+  console.log('✓ Pagos: estado activa/vencida/invalida para el bot, error separado y botón de activación por WhatsApp');
 }

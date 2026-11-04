@@ -26,7 +26,7 @@ export const trialText = config.trialDays > 0 ? `${config.trialDays} días grati
 
 /** Lo que incluye Premium; se usa en precios, en el resultado del test y en el tablero bloqueado. */
 export const PREMIUM_FEATURES = [
-  { title: "Asistente de WhatsApp", text: "Escribes “almuerzo 25 mil” y queda registrado. Entiende montos como los dices: mil, k, lucas, palos." },
+  { title: "Asistente de WhatsApp", text: "Escribes “almuerzo 25 mil” o mandas la foto del recibo y queda registrado. Cada lunes, el resumen de tu semana." },
   { title: "Tablero de gastos e ingresos", text: "Cuánto entra, cuánto sale y cuánto te queda, por día y por categoría, en la moneda de tu país." },
   { title: "Presupuesto con cumplimiento", text: "Defines cuánto gastar por categoría y ves en qué vas, con alertas antes de pasarte." },
   { title: "Recomendaciones de ahorro", text: "Qué ajustar con tus propias cifras, respaldado por guías de entidades oficiales." },

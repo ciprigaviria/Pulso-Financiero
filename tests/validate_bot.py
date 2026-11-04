@@ -62,6 +62,32 @@ for c in data['summaryCases']:
             if abs(py[k] - js[k]) > 1e-6: bad += 1; print('totales', side, k, py[k], js[k]); break
         if set(py['porCategoria']) != set(js['porCategoria']) or any(abs(py['porCategoria'][k] - js['porCategoria'][k]) > 1e-6 for k in py['porCategoria']):
             bad += 1; print('categorías', side)
-print(f"Comparados {len(data['amountsCases'])} textos con montos ({mult} con mil, k, lucas, palos o millones) y {len(data['summaryCases'])} meses de movimientos (bot y sitio); diferencias: {bad}")
+from datetime import date, timedelta
+def week(movs, today):
+    t = date.fromisoformat(today)
+    hasta = t - timedelta(days=t.weekday() + 1); desde = hasta - timedelta(days=6)
+    pd, ph = desde - timedelta(days=7), desde - timedelta(days=1)
+    inr = lambda m, a, b: m['tipo'] == 'gasto' and a <= date.fromisoformat(m['fecha']) <= b
+    wk = [m for m in movs if inr(m, desde, hasta)]
+    gasto = sum(m['monto'] for m in wk); ant = sum(m['monto'] for m in movs if inr(m, pd, ph))
+    cats = {}
+    for m in wk: cats[m['categoria']] = cats.get(m['categoria'], 0) + m['monto']
+    top = sorted(cats, key=lambda k: (-cats[k], k))[0] if cats else None
+    return desde.isoformat(), hasta.isoformat(), gasto, len(wk), ant, top, (cats[top] if top else None)
+for c in data['weekCases']:
+    d, h, g, n, a, top, tm = week(c['movs'], c['today']); js = c['week']
+    ok = (d, h, n) == (js['desde'], js['hasta'], js['n']) and abs(g - js['gasto']) < 0.006 and abs(a - js['anterior']) < 0.006
+    ok = ok and ((a > 0 and abs((round(g, 2) - round(a, 2)) / round(a, 2) - js['cambio']) < 1e-9) or (a == 0 and js['cambio'] is None))
+    ok = ok and (top is None and js['top'] is None or top is not None and js['top']['categoria'] == top and abs(js['top']['monto'] - tm) < 0.006)
+    if not ok: bad += 1; print('semana', c['today'], (d, h, g, n, a, top), js)
+    spent = {}
+    for m in c['movs']:
+        if m['tipo'] == 'gasto' and m['fecha'][:7] == c['today'][:7]: spent[m['categoria']] = spent.get(m['categoria'], 0) + m['monto']
+    ids = [k for k, v in c['pres'].items() if v > 0]
+    exc = sorted(k for k in ids if round(spent.get(k, 0), 2) > c['pres'][k])
+    ale = sorted(k for k in ids if round(spent.get(k, 0), 2) <= c['pres'][k] and round(spent.get(k, 0), 2) / c['pres'][k] >= 0.8)
+    b = c['budget']
+    if b['definido'] != bool(ids) or sorted(b['excedidas']) != exc or sorted(b['alerta']) != ale: bad += 1; print('presupuesto', c['today'], exc, ale, b)
+print(f"Comparados {len(data['amountsCases'])} textos con montos ({mult} con mil, k, lucas, palos o millones) y {len(data['summaryCases'])} meses de movimientos (bot y sitio) y {len(data['weekCases'])} resúmenes semanales; diferencias: {bad}")
 if bad: sys.exit(1)
 print('✓ Python, el bot y el sitio coinciden')

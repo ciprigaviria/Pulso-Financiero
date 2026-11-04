@@ -109,7 +109,8 @@ La persona escribe "almuerzo 25 mil" por WhatsApp; el bot lo entiende, lo guarda
 WhatsApp ──► Meta ──► Relevo (Cloudflare Worker) ──► Apps Script del bot ──► Hoja de cálculo
                        verifica la firma               entiende el mensaje (IA + reglas)
                        responde 200 al instante        responde por WhatsApp
-Sitio /movimientos ◄──────────── GET ?action=movimientos&t=enlace personal
+Sitio /tablero ◄──────────────── GET ?action=tablero&t=enlace personal
+Apps Script del bot ──► Apps Script de pagos (?action=licencia) ──► Lemon Squeezy   (¿suscripción activa?)
 ```
 
 | Carpeta | Qué es |
@@ -123,7 +124,8 @@ Ejemplo sin bot: `/tablero?ejemplo`.
 ### Lo que entiende
 - Gastos e ingresos en lenguaje natural, varios por mensaje: "taxi 12.000 y café 6.000", "me pagaron la quincena 2,1 millones", "ayer súper 85 mil".
 - Montos coloquiales: mil, k, lucas, palos, millones, medio millón, y separadores de cualquier país.
-- Comandos: **resumen**, **cuánto llevo en restaurantes**, **borrar** (último), **tablero** (enlace), **nuevo enlace**, **borrar mis datos** (pide confirmación), el nombre de una categoría para corregir el último ("transporte") y el nombre de un país para cambiar la moneda.
+- Comandos: **resumen**, **cuánto llevo en restaurantes**, **borrar** (último), **tablero** (enlace), **nuevo enlace**, **borrar mis datos** (pide confirmación), **resumen no / resumen si** (resumen de los lunes), **activar CÓDIGO** (suscripción), el nombre de una categoría para corregir el último ("transporte") y el nombre de un país para cambiar la moneda.
+- **Fotos de recibos**: lee el total con la IA y anota un gasto. Si la foto trae un texto con monto, manda ese monto. La foto no se guarda. Tope de fotos por persona al día: `MAX_FOTOS_DIA` (15).
 - La IA (Claude) interpreta el mensaje, pero **nunca pone montos**: cada monto se compara con los que de verdad aparecen en el texto. Si la IA no está configurada o falla, entran reglas propias.
 
 ### Puesta en marcha (unos 45 minutos)
@@ -145,13 +147,40 @@ Ejemplo sin bot: `/tablero?ejemplo`.
 | `BETA_NUMEROS` | Números autorizados, separados por coma (ej. `573001234567`). Vacío = cualquiera |
 | `MAX_MENSAJES_DIA` | Tope de mensajes por persona al día (control de costos; 60 por defecto) |
 | `LLM_MODEL` / `GRAPH_VERSION` | Modelo de Claude y versión de la API de Meta (vienen con un valor por defecto) |
+| `PAGOS_URL` | La `/exec` del Apps Script de pagos. **Al ponerla, el bot exige suscripción** (ver abajo). Vacío = piloto abierto |
+| `CONTACTO` | Correo de soporte que el bot da cuando un código falla o está en otro número |
+| `RENOVAR_URL` | Dónde renovar (por defecto `SITE_URL/#precios`) |
+| `DIAS_CONSULTA` | Días de modo consulta tras terminar la suscripción antes de borrar los datos (90) |
+| `WA_PLANTILLA_RESUMEN` / `WA_PLANTILLA_IDIOMA` | Nombre e idioma de la plantilla aprobada del resumen semanal (ej. `resumen_semanal`, `es`) |
+| `RESUMEN_HORA` | Hora local desde la que sale el resumen de los lunes (9) |
 
 7. **Sitio.** En `src/config.ts` pega `botScriptUrl` (la `/exec` del bot) y `botWhatsapp` (el número, solo dígitos).
 8. **Prueba.** Escríbele "hola" al número de prueba desde un número autorizado. También puedes ejecutar `probarBot` en Apps Script: simula una conversación y deja el resultado en la hoja.
 
+### Suscripción ligada al WhatsApp (paso 3)
+1. En el Apps Script **de pagos** (`apps-script/Code.gs`) pon `BOT_WHATSAPP` = el número del bot con indicativo (ej. `573001234567`). El correo de bienvenida trae el botón **Activar mi WhatsApp**, que abre el chat con `activar CÓDIGO` ya escrito. Vuelve a implementar (*Implementar → Gestionar → Editar → Versión nueva*).
+2. En el Apps Script **del bot** pon `PAGOS_URL` (la `/exec` de pagos) y `CONTACTO`. Ejecuta `instalarTareas` una vez y vuelve a implementar.
+3. Cómo se comporta:
+   - Un número sin suscripción recibe una invitación con el enlace de precios (como máximo una vez cada 6 horas) y no se registra nada.
+   - `activar CÓDIGO` valida la clave con Lemon Squeezy (a través de pagos) y liga el número. Un código sirve para un solo número; si alguien cambia de número, borra el valor de `licencia` en su fila vieja de la hoja **Usuarios** y pídele que vuelva a activar desde el número nuevo.
+   - El bot revisa cada clave como máximo cada 12 horas. Si cancelan, Lemon Squeezy mantiene la clave activa hasta el final del periodo pagado; luego queda vencida.
+   - Vencida: el bot deja de registrar, pero responde **tablero** y **resumen**; el tablero muestra un aviso de modo consulta y no guarda cambios. A los `DIAS_CONSULTA` días, la tarea de cada hora borra los datos.
+   - Renovar = nueva suscripción con código nuevo: `activar CÓDIGO-NUEVO` en el mismo número y sus datos siguen ahí.
+   - Si el servicio de pagos o Lemon Squeezy fallan, el bot conserva el último estado (no bloquea a quien pagó).
+   - Los números en `BETA_NUMEROS` usan el bot gratis aunque el cobro esté activo. Las personas del piloto sin código quedan en modo consulta: agrégalas a `BETA_NUMEROS` si deben seguir gratis.
+
+### Resumen semanal
+- Sale los lunes desde `RESUMEN_HORA` (hora local de cada persona; si falla, se reintenta hasta el miércoles), una vez por semana, solo a quien tiene acceso, registró algo en las últimas dos semanas y no escribió **resumen no**.
+- Si la persona escribió en las últimas 24 horas, va como mensaje normal. Si no, Meta exige una **plantilla aprobada** (categoría *Utilidad*). Créala en *WhatsApp Manager → Plantillas*, nombre `resumen_semanal`, idioma *Español*, con este cuerpo exacto:
+
+  > Hola {{1}}, este es tu resumen de la semana del {{2}}: gastaste {{3}} en {{4}} registros. Frente a la semana anterior: {{5}}. Donde más gastaste: {{6}}. Presupuesto del mes: {{7}}. Escribe \*tablero\* para ver el detalle o \*resumen no\* si no quieres recibir este mensaje.
+
+  Ejemplos para la revisión: Ana · 2 nov al 8 nov · $ 150.000 · 3 · 12 % más · Mercado ($ 100.000) · todo dentro de lo planeado. Cuando la aprueben, pon su nombre en `WA_PLANTILLA_RESUMEN`. Mientras no exista, solo reciben el resumen quienes escribieron en las últimas 24 horas.
+- Costo: cada plantilla de utilidad la cobra Meta por mensaje entregado (tarifa por país en la página de precios de WhatsApp Business). Los mensajes dentro de la ventana de 24 horas no son plantillas.
+
 ### Costos del piloto
 - WhatsApp: desde el 1 de octubre de 2026 Meta cobra las respuestas de servicio, pero cada número tiene **1.000 mensajes de servicio gratis al mes**. Un piloto de 5–20 personas cabe ahí.
-- Claude: centavos de dólar por cada cien mensajes con el modelo Haiku.
+- Claude: centavos de dólar por cada cien mensajes con el modelo Haiku. Una foto de recibo consume varias veces lo de un texto (por eso el tope diario de fotos).
 - Cloudflare Workers y Apps Script: planes gratuitos.
 
 ### Privacidad

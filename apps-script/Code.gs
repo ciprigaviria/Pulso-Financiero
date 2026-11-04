@@ -5,8 +5,9 @@
  *  1. Recibe los correos de quienes piden su resumen gratis y se lo envía.
  *  2. Recibe el aviso de pago de Lemon Squeezy, verifica el pedido con su API,
  *     busca la clave de licencia y envía el enlace al tablero + el informe PDF.
- *  3. Valida claves de licencia para el tablero (GET ?action=licencia&key=...), incluidos
- *     los códigos de cortesía (membresías gratis) que creas con crearCodigoCortesia().
+ *  3. Valida claves de licencia (GET ?action=licencia&key=...), incluidos los códigos de cortesía
+ *     (membresías gratis) que creas con crearCodigoCortesia(). El bot de WhatsApp pregunta aquí si una
+ *     suscripción sigue activa: responde estado = activa | vencida | invalida.
  *  4. Guarda inscripciones a la beta y comentarios del tablero.
  *  5. Crea la base de datos (Google Sheets).
  *
@@ -37,6 +38,8 @@ const DEFAULTS = {
   PRICE_MONTHLY: 'USD 4,99',
   PRICE_ANNUAL: 'USD 44,99',
   TRIAL_DAYS: '7',
+  BOT_WHATSAPP: '',
+  DIAS_CONSULTA: '90',
   LEADS_PER_EMAIL_PER_DAY: '2'
 };
 
@@ -239,7 +242,7 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action === 'licencia') {
     try { return json_(validateLicense_(p.key, cfg_())); }
-    catch (err) { logError_(err, 'licencia'); return json_({ ok: false, error: 'No pudimos validar la clave. Intenta de nuevo en un momento.' }); }
+    catch (err) { logError_(err, 'licencia'); return json_({ ok: false, estado: 'error', error: 'No pudimos validar la clave. Intenta de nuevo en un momento.' }); }
   }
   return ContentService.createTextOutput('Pulso Financiero: servicio activo.');
 }
@@ -248,8 +251,8 @@ function doGet(e) {
 
 function validateLicense_(key, c) {
   key = String(key || '').trim();
-  if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return { ok: false, error: 'La clave no tiene el formato correcto.' };
-  if (courtesyCodes_(c).indexOf(key.toUpperCase()) > -1) return { ok: true, courtesy: true };
+  if (!/^[A-Za-z0-9-]{8,80}$/.test(key)) return { ok: false, estado: 'invalida', error: 'La clave no tiene el formato correcto.' };
+  if (courtesyCodes_(c).indexOf(key.toUpperCase()) > -1) return { ok: true, estado: 'activa', courtesy: true };
   const cache = CacheService.getScriptCache();
   const hit = cache.get('lic_' + key);
   if (hit) return JSON.parse(hit);
@@ -268,11 +271,14 @@ function validateLicense_(key, c) {
   const meta = data.meta || {};
   const lk = data.license_key || {};
   let out;
-  if (!data.valid) out = { ok: false, error: 'La clave no es válida o fue desactivada.' };
-  else if (c.LS_STORE_ID && String(meta.store_id) !== String(c.LS_STORE_ID)) out = { ok: false, error: 'La clave no es de esta tienda.' };
-  else if (c.LS_PRODUCT_ID && String(meta.product_id) !== String(c.LS_PRODUCT_ID)) out = { ok: false, error: 'La clave es de otro producto.' };
-  else if (lk.status && ['active', 'inactive'].indexOf(lk.status) === -1) out = { ok: false, error: 'La clave está ' + lk.status + '.' };
-  else out = { ok: true };
+  // Una suscripción cancelada conserva la clave activa hasta el fin del periodo pagado; luego queda "expired".
+  // "disabled" = desactivada a mano (por ejemplo, un reembolso).
+  const ended = ['expired', 'disabled'].indexOf(lk.status) > -1;
+  const ours = (!c.LS_STORE_ID || String(meta.store_id) === String(c.LS_STORE_ID)) && (!c.LS_PRODUCT_ID || String(meta.product_id) === String(c.LS_PRODUCT_ID));
+  if (meta.store_id && !ours) out = { ok: false, estado: 'invalida', error: 'La clave no es de esta tienda o de este producto.' };
+  else if (ended) out = { ok: false, estado: 'vencida', error: 'La suscripción de esta clave terminó.' };
+  else if (!data.valid) out = { ok: false, estado: 'invalida', error: 'La clave no es válida.' };
+  else out = { ok: true, estado: 'activa' };
   cache.put('lic_' + key, JSON.stringify(out), out.ok ? 21600 : 300);
   return out;
 }
@@ -295,9 +301,9 @@ function crearCodigoCortesia(nota) {
   const code = 'PULSO-' + raw.slice(0, 4) + '-' + raw.slice(4, 8);
   const list = courtesyCodes_(c).concat([code]);
   PropertiesService.getScriptProperties().setProperty('CODIGOS_CORTESIA', list.join(','));
-  const link = boardLink_(c, code);
+  const link = activationLink_(c, code) || boardLink_(c, code);
   sheet_('Cortesías', ['Fecha', 'Código', 'Nota', 'Enlace']).appendRow([new Date(), code, typeof nota === 'string' ? nota : 'Cortesía', link]);
-  console.log('Código de cortesía: ' + code + '\nEnlace directo: ' + link);
+  console.log('Código de cortesía: ' + code + '\nEnlace de activación: ' + link);
   return code;
 }
 
@@ -315,6 +321,12 @@ function fetchLicenseKey_(orderId, c) {
     if (i < 3) Utilities.sleep(2500);
   }
   return '';
+}
+
+/** Enlace que abre WhatsApp con "activar CÓDIGO" ya escrito (requiere BOT_WHATSAPP, solo dígitos con indicativo). */
+function activationLink_(c, key) {
+  const num = String(c.BOT_WHATSAPP || '').replace(/\D/g, '');
+  return num && key ? 'https://wa.me/' + num + '?text=' + encodeURIComponent('activar ' + key) : '';
 }
 
 function boardLink_(c, key) {
@@ -472,7 +484,7 @@ function sendPackage_(email, name, code, pais, res, c, key) {
     .getAs('application/pdf').setName('Informe de salud financiera - ' + c.BRAND_NAME + '.pdf');
   MailApp.sendEmail({
     to: email,
-    subject: 'Bienvenido a ' + c.PREMIUM_NAME,
+    subject: 'Bienvenido a ' + c.PREMIUM_NAME + ': activa tu WhatsApp',
     htmlBody: packageEmailHtml_(name, res, c, key),
     attachments: [pdf],
     name: c.BRAND_NAME,
@@ -483,7 +495,7 @@ function sendPackage_(email, name, code, pais, res, c, key) {
 function sendPackageWithoutTest_(email, name, c, key) {
   MailApp.sendEmail({
     to: email,
-    subject: 'Bienvenido a ' + c.PREMIUM_NAME + ': falta un paso',
+    subject: 'Bienvenido a ' + c.PREMIUM_NAME + ': activa tu WhatsApp',
     htmlBody: packageEmailHtml_(name, null, c, key),
     name: c.BRAND_NAME,
     replyTo: c.REPLY_TO || undefined
@@ -548,25 +560,29 @@ function leadEmailHtml_(res, buy, c) {
 
 function keyBoxHtml_(c, key) {
   if (!key) {
-    return '<p style="background:#fff4e5;border:1px solid #f2d3a6;padding:12px;border-radius:8px">Tu clave de acceso se está generando. Si no te llega en un correo aparte en los próximos minutos, responde a este mensaje y te la enviamos.</p>';
+    return '<p style="background:#fff4e5;border:1px solid #f2d3a6;padding:12px;border-radius:8px">Tu código de activación se está generando. Si no te llega en un correo aparte en los próximos minutos, responde a este mensaje y te lo enviamos.</p>';
   }
-  return '<div style="margin:18px 0;padding:18px;border:2px solid ' + HEX.brand + ';border-radius:12px">' +
-    '<a href="' + esc_(boardLink_(c, key)) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Abrir mi tablero</a>' +
-    '<p style="margin:14px 0 4px;font-size:13px;color:' + HEX.ink2 + '">Tu clave de acceso (guárdala para entrar desde otro dispositivo):</p>' +
+  const wa = activationLink_(c, key);
+  const button = wa
+    ? '<a href="' + esc_(wa) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Activar mi WhatsApp</a>' +
+      '<p style="margin:10px 0 0;font-size:13px;color:' + HEX.ink2 + '">Se abre WhatsApp con el mensaje listo: solo toca <b>enviar</b>. Tu número queda ligado a tu suscripción.</p>'
+    : '<a href="' + esc_(boardLink_(c, key)) + '" style="background:' + HEX.brand + ';color:#fff;text-decoration:none;font-weight:bold;padding:12px 20px;border-radius:999px;display:inline-block">Abrir mi tablero</a>';
+  return '<div style="margin:18px 0;padding:18px;border:2px solid ' + HEX.brand + ';border-radius:12px">' + button +
+    '<p style="margin:14px 0 4px;font-size:13px;color:' + HEX.ink2 + '">Tu código de activación' + (wa ? ' (si el botón no abre, escríbele al asistente <b>activar</b> y este código)' : '') + ':</p>' +
     '<div style="font-family:Menlo,Consolas,monospace;font-size:15px;font-weight:bold;background:' + HEX.soft + ';padding:10px 12px;border-radius:8px;word-break:break-all">' + esc_(key) + '</div></div>';
 }
 
 function packageEmailHtml_(name, res, c, key) {
   const hello = name ? 'Hola, ' + esc_(name.split(' ')[0]) + ':' : 'Hola:';
-  const privacy = '<p style="font-size:13px;color:' + HEX.ink2 + '">Tus cifras (ingresos, gastos, deudas) se guardan solo en tu navegador; nosotros no las vemos. Para usarlas en otro dispositivo, usa el botón "Respaldo" del tablero.</p>';
+  const how = '<p><b>Cómo empezar:</b> activa tu WhatsApp con el botón y escríbele al asistente tus gastos como se los dirías a un amigo ("almuerzo 25 mil"), o mándale la foto de un recibo. Escríbele <b>tablero</b> y te envía el enlace a tus gráficos, tu presupuesto y tus metas. Cada lunes recibirás el resumen de tu semana.</p>';
+  const terms = '<p style="font-size:13px;color:' + HEX.ink2 + '">Si cancelas, conservas el acceso hasta el final del periodo que ya pagaste. Después, tu tablero queda en modo consulta durante ' + esc_(c.DIAS_CONSULTA) + ' días y luego borramos tus datos. Puedes borrarlos tú cuando quieras escribiéndole al asistente <b>borrar mis datos</b>.</p>';
   const body = res
-    ? '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu acceso ya está activo:</p>' + keyBoxHtml_(c, key) +
-      '<p><b>Cómo empezar:</b> abre el tablero, escribe tus ingresos, gastos y deudas del mes (unos 10 minutos) y mira tus recomendaciones. Después, sigue la semana 1 de tu plan.</p>' +
+    ? '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu suscripción ya está activa:</p>' + keyBoxHtml_(c, key) + how +
       '<p>Adjuntamos además tu <b>informe en PDF</b> con tu puntaje (' + res.total + ' de 100, ' + esc_(res.level.name) + '), tu semáforo y el plan de 30 días.</p>' +
-      privacy + '<p>Si tienes dudas, responde a este correo.</p>'
-    : '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu acceso ya está activo:</p>' + keyBoxHtml_(c, key) +
-      '<p>No recibimos tus respuestas del test, así que falta un paso: <a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">haz el test aquí</a> (5 minutos) para que el tablero muestre tu radar y tu plan. Si quieres el informe en PDF, responde a este correo con tu puntaje.</p>' +
-      privacy;
+      terms + '<p>Si tienes dudas, responde a este correo.</p>'
+    : '<p>' + hello + '</p><p>Bienvenido a ' + esc_(c.PREMIUM_NAME) + '. Tu suscripción ya está activa:</p>' + keyBoxHtml_(c, key) + how +
+      '<p>Si aún no haces el diagnóstico gratis, <a href="' + esc_(c.SITE_URL) + '/prueba-personal/" style="color:' + HEX.brand + ';font-weight:bold">hazlo aquí</a> (5 minutos): te da tu puntaje y un plan de 30 días.</p>' +
+      terms + '<p>Si tienes dudas, responde a este correo.</p>';
   return shell_(body, c);
 }
 
@@ -654,7 +670,7 @@ function setup() {
   const props = PropertiesService.getScriptProperties();
   const c = cfg_();
   Object.keys(DEFAULTS).forEach(k => { if (!props.getProperty(k)) props.setProperty(k, DEFAULTS[k]); });
-  ['LS_API_KEY', 'LS_STORE_ID', 'LS_PRODUCT_ID', 'CODIGOS_CORTESIA'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
+  ['LS_API_KEY', 'LS_STORE_ID', 'LS_PRODUCT_ID', 'CODIGOS_CORTESIA', 'BOT_WHATSAPP'].forEach(k => { if (!props.getProperty(k)) props.setProperty(k, ''); });
 
   if (!c.DB_ID) {
     const ss = SpreadsheetApp.create(c.BRAND_NAME + ' — Base de datos');

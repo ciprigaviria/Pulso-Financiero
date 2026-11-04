@@ -21,7 +21,7 @@ import { useVisitorCountry } from "@/lib/use-country"
 import { config } from "@/config"
 import { cn } from "@/lib/utils"
 
-type Payload = { usuario: { nombre: string; pais: string; moneda: string }; mes: string; meses: string[]; hoy?: string; movimientos: Movement[]; historico?: MesHist[]; perfil?: Perfil }
+type Payload = { usuario: { nombre: string; pais: string; moneda: string }; mes: string; meses: string[]; hoy?: string; movimientos: Movement[]; historico?: MesHist[]; perfil?: Perfil; acceso?: Acceso }
 const TOKEN_KEY = "pulso_bot_token_v1"
 const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 const monthName = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`
@@ -83,6 +83,10 @@ function demoPerfil(k: number): Perfil {
   }
 }
 
+/** Estado de la suscripción que envía el bot: activa/libre, o consulta (vencida/ninguna) con sus fechas. */
+type Acceso = { estado: "activa" | "libre" | "vencida" | "ninguna"; vence: string; hasta: string; renovar: string }
+const longDate = (iso: string) => (iso ? `${Number(iso.slice(8, 10))} de ${MONTHS[Number(iso.slice(5, 7)) - 1]} de ${iso.slice(0, 4)}` : "")
+
 type Loaded = { mode: "loading" } | { mode: "error"; message: string } | { mode: "ready"; demo: boolean; data: Payload; token: string | null }
 
 export function PremiumApp() {
@@ -137,7 +141,9 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
   const [dirty, setDirty] = React.useState(false)
   const [saveMsg, setSaveMsg] = React.useState<string | null>(null)
   const update = (p: Perfil) => { setPerfil(p); setDirty(true); setSaveMsg(null) }
+  const consulta = !demo && (data.acceso?.estado === "vencida" || data.acceso?.estado === "ninguna")
   const save = async () => {
+    if (consulta) { setSaveMsg("Tu tablero está en modo consulta: renueva tu suscripción para guardar cambios."); return }
     if (demo || !token) { setDirty(false); setSaveMsg("En el ejemplo los cambios no se guardan."); return }
     setSaveMsg("Guardando…")
     try { await postPerfil(token, cleanPerfil(perfil)); setDirty(false); setSaveMsg("Guardado ✓") } catch (e) { setSaveMsg((e as Error).message) }
@@ -169,6 +175,17 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
           )}
         </div>
       </div>
+      {consulta && data.acceso && (
+        <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rojo/30 bg-rojo/[0.06] px-4 py-3 text-sm">
+          <p className="min-w-0 flex-1">
+            <b>Tu tablero está en modo consulta.</b>{" "}
+            {data.acceso.estado === "vencida" && data.acceso.vence
+              ? <>Tu suscripción terminó el {longDate(data.acceso.vence)}. Puedes ver tus datos hasta el {longDate(data.acceso.hasta)}; después los borraremos. Para seguir registrando, renueva y escríbele al asistente <b>activar</b> con tu nuevo código.</>
+              : <>Para registrar movimientos y guardar cambios necesitas una suscripción activa.</>}
+          </p>
+          <Button asChild size="sm"><a href={data.acceso.renovar || "/#precios"}>Renovar</a></Button>
+        </div>
+      )}
       {demo && <div className="mb-5 rounded-2xl border border-amarillo/40 bg-amarillo/10 px-4 py-3 text-sm"><b>Ejemplo ilustrativo con datos ficticios.</b> Puedes tocar todo; los cambios no se guardan.</div>}
 
       <nav className="sticky top-16 z-20 -mx-4 mb-6 overflow-x-auto border-b bg-background/90 px-4 backdrop-blur [scrollbar-width:none] sm:mx-0 sm:rounded-2xl sm:border sm:px-1.5 [&::-webkit-scrollbar]:hidden" aria-label="Secciones del tablero">
