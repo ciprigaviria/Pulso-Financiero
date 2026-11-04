@@ -211,7 +211,7 @@ export function LineChart({ series, labels, format, caption, tip, height = 200 }
             return (
               <g key={s.name}>
                 {si === 0 && <path d={`${d}L${last[0]},${H}L${P[0][0]},${H}Z`} fill={`url(#${id}a)`} />}
-                <path d={d} pathLength={1} fill="none" stroke={s.color} strokeWidth={si === 0 ? 2.5 : 2} strokeLinecap="round"
+                <path d={d} pathLength={s.dashed ? undefined : 1} fill="none" stroke={s.color} strokeWidth={si === 0 ? 2.5 : 2} strokeLinecap="round"
                   strokeDasharray={s.dashed ? "4 5" : undefined}
                   style={s.dashed ? { opacity: drawn || reduce ? 1 : 0, transition: "opacity .8s .6s" } : { strokeDasharray: 1, strokeDashoffset: drawn || reduce ? 0 : 1, transition: reduce ? "none" : "stroke-dashoffset 1.4s cubic-bezier(.3,.8,.2,1) .2s" }} />
                 <circle cx={last[0]} cy={last[1]} r={4} fill={s.color} className="stroke-card" strokeWidth={2} />
@@ -332,6 +332,106 @@ export function Radar({ values, axis, color = "var(--primary)", tip, size = 340 
           <text x={C + 4} y={C - R * (0.12 + 0.88 * 0.8) - 4} fontSize={9} className="fill-primary/70">80 · verde</text>
         </svg>
       )}
+    </div>
+  )
+}
+
+/* ---------------- columnas: gasto por periodo, con presupuesto opcional ---------------- */
+
+export function BarChart({ labels, titles, values, budget, color = "var(--primary)", name, format, tip, height = 230 }: {
+  labels: string[]; titles?: string[]; values: number[]; budget?: number[] | null; color?: string; name: string; format: (n: number) => string; tip: TipRef; height?: number
+}) {
+  const [ref, { w: W, h: H }] = useSize()
+  const reduce = useReducedMotion()
+  const [drawn, setDrawn] = React.useState(false)
+  const [hover, setHover] = React.useState<number | null>(null)
+  React.useEffect(() => { if (!W) return; const r = requestAnimationFrame(() => requestAnimationFrame(() => setDrawn(true))); return () => cancelAnimationFrame(r) }, [W])
+  const hi = Math.max(1, ...values, ...(budget || []))
+  const top = 28, bot = 22, left = 10, right = 58
+  const n = labels.length
+  const slot = (W - left - right) / Math.max(1, n)
+  const bw = Math.min(46, slot * 0.62)
+  const Y = (v: number) => top + (1 - v / hi) * (H - top - bot)
+  const raw = hi / 4, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)))
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || raw
+  const ticks: number[] = []
+  for (let v = 0; v <= hi + 1e-9; v += step) ticks.push(v)
+  const every = Math.ceil(n / Math.max(1, Math.floor((W - left - right) / 44)))
+  const show = (i: number, x: number, y: number) => {
+    setHover(i)
+    const rows = [{ label: name, value: format(values[i]), color }]
+    if (budget) rows.push({ label: "Presupuesto", value: format(budget[i]), color: "var(--muted-foreground)" }, { label: values[i] > budget[i] ? "Te pasaste por" : "Te quedó", value: format(Math.abs(budget[i] - values[i])), color: values[i] > budget[i] ? "var(--rojo)" : "var(--verde)" })
+    tip.current?.show(x, y, { title: (titles || labels)[i], rows })
+  }
+  return (
+    <div ref={ref} className="relative w-full overflow-hidden rounded-[18px] border bg-muted/40" style={{ height }}>
+      {W > 0 && (
+        <svg width={W} height={H} className="block" role="img" aria-label={name}>
+          {ticks.map((v) => (
+            <g key={v}>
+              <line x1={0} x2={W} y1={Y(v)} y2={Y(v)} className={v === 0 ? "stroke-muted-foreground/40" : "stroke-border"} strokeWidth={1} />
+              <text x={W - 8} y={Y(v) - 5} textAnchor="end" fontSize={10} className="fill-muted-foreground font-num">{format(v)}</text>
+            </g>
+          ))}
+          {values.map((v, i) => {
+            const cx = left + slot * (i + 0.5)
+            const over = budget ? v > budget[i] : false
+            const h = Math.max(0, Y(0) - Y(v))
+            return (
+              <g key={labels[i]} onPointerEnter={(e) => { const r = (e.currentTarget as SVGGElement).ownerSVGElement!.getBoundingClientRect(); show(i, r.left + cx, r.top + Y(v)) }} onPointerLeave={() => { setHover(null); tip.current?.hide() }}>
+                <rect x={cx - slot / 2} y={0} width={slot} height={H} fill="transparent" />
+                <rect x={cx - bw / 2} width={bw} rx={Math.min(6, bw / 3)} y={Y(v)} height={h}
+                  fill={over ? "var(--rojo)" : color} opacity={hover === null || hover === i ? 1 : 0.45}
+                  style={{ transformBox: "fill-box", transformOrigin: "center bottom", transform: drawn || reduce ? "scaleY(1)" : "scaleY(0)", transition: reduce ? "none" : `transform .8s cubic-bezier(.3,.8,.2,1) ${i * 25}ms, opacity .2s` }} />
+                {budget && <line x1={cx - bw / 2 - 5} x2={cx + bw / 2 + 5} y1={Y(budget[i])} y2={Y(budget[i])} stroke="var(--foreground)" strokeWidth={2} strokeDasharray="4 3" strokeLinecap="round" />}
+                {(i % every === 0 || i === n - 1) && <text x={cx} y={H - 6} textAnchor="middle" fontSize={10} className="fill-muted-foreground">{labels[i]}</text>}
+              </g>
+            )
+          })}
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/* ---------------- torta (dona): participación por categoría ---------------- */
+
+export type Slice = { id: string; name: string; v: number; color: string }
+
+export function Donut({ items, format, tip, active, onSelect, size = 200, center }: {
+  items: Slice[]; format: (n: number) => string; tip: TipRef; active?: string | null; onSelect?: (id: string) => void; size?: number; center?: React.ReactNode
+}) {
+  const reduce = useReducedMotion()
+  const [drawn, setDrawn] = React.useState(false)
+  const [hover, setHover] = React.useState<string | null>(null)
+  React.useEffect(() => { const r = requestAnimationFrame(() => requestAnimationFrame(() => setDrawn(true))); return () => cancelAnimationFrame(r) }, [])
+  const total = items.reduce((a, b) => a + b.v, 0) || 1
+  const sw = size * 0.14, R = size / 2 - sw / 2 - 4, C = 2 * Math.PI * R
+  const gap = items.length > 1 ? 2 : 0
+  let acc = 0
+  const focus = hover || active || null
+  return (
+    <div className="relative mx-auto shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Participación de cada categoría en tu gasto" className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={R} fill="none" className="stroke-muted" strokeWidth={sw} />
+        {items.map((it) => {
+          const len = (it.v / total) * C
+          const off = acc
+          acc += len
+          const on = !focus || focus === it.id
+          return (
+            <circle key={it.id} cx={size / 2} cy={size / 2} r={R} fill="none" stroke={it.color}
+              strokeWidth={focus === it.id ? sw + 6 : sw}
+              strokeDasharray={`${Math.max(0, (drawn || reduce ? len : 0) - gap)} ${C}`} strokeDashoffset={-off}
+              opacity={on ? 1 : 0.35} className={onSelect ? "cursor-pointer" : undefined}
+              style={{ transition: reduce ? "none" : "stroke-dasharray 1s cubic-bezier(.3,.8,.2,1), stroke-width .2s, opacity .2s" }}
+              onPointerMove={(e) => { setHover(it.id); tip.current?.show(e.clientX, e.clientY, { title: it.name, rows: [{ label: `${Math.round((it.v / total) * 1000) / 10} %`, value: format(it.v), color: it.color }] }) }}
+              onPointerLeave={() => { setHover(null); tip.current?.hide() }}
+              onClick={() => onSelect?.(it.id)} />
+          )
+        })}
+      </svg>
+      <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">{center}</div>
     </div>
   )
 }

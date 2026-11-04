@@ -7,21 +7,21 @@ import * as React from "react"
 import Link from "next/link"
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, Bell, CalendarCheck, Check, ExternalLink, Info, Landmark, LayoutDashboard, Lightbulb, ListChecks, Plus, Save, Target, Trash2, UserRound, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { BentoCard, CountUp, LineChart, Tooltip, type TipApi } from "@/components/dashboard/charts"
+import { BarChart, BentoCard, CountUp, Donut, LineChart, Segmented, Tooltip, type TipApi } from "@/components/dashboard/charts"
 import { DebtPlanCard } from "@/components/dashboard/dashboard-view"
 import { SurplusCard } from "@/components/dashboard/surplus-card"
 import { CountryPicker } from "@/components/site/country-picker"
-import { BOT_CATEGORIES, botCategory, cumulativeByDay, sampleMovements, summarizeMovements, type Movement } from "@/lib/bot-categories"
+import { BOT_CATEGORIES, botCategory, sampleMovements, summarizeMovements, type Movement } from "@/lib/bot-categories"
 import * as F from "@/lib/finance"
 import { countryById, formatInput, moneyFormatter, parseAmount, withMoney, type Fmt } from "@/lib/money"
-import { budgetStatus, catName, cleanPerfil, emptyPerfil, fixedPayments, goalPlan, savingsTips, toFinanceData, type Perfil } from "@/lib/premium"
+import { budgetStatus, catName, categoryShares, cleanPerfil, emptyPerfil, fixedPayments, goalPlan, periodCategories, sampleHistory, savingsTips, spendSeries, toFinanceData, type MesHist, type Perfil, type Vista } from "@/lib/premium"
 import { FX_PER_USD } from "@/lib/sample"
 import { realRate, TASAS, TASAS_REVISADAS } from "@/data/tasas"
 import { useVisitorCountry } from "@/lib/use-country"
 import { config } from "@/config"
 import { cn } from "@/lib/utils"
 
-type Payload = { usuario: { nombre: string; pais: string; moneda: string }; mes: string; meses: string[]; hoy?: string; movimientos: Movement[]; perfil?: Perfil }
+type Payload = { usuario: { nombre: string; pais: string; moneda: string }; mes: string; meses: string[]; hoy?: string; movimientos: Movement[]; historico?: MesHist[]; perfil?: Perfil }
 const TOKEN_KEY = "pulso_bot_token_v1"
 const MONTHS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 const monthName = (ym: string) => `${MONTHS[Number(ym.slice(5, 7)) - 1]} ${ym.slice(0, 4)}`
@@ -124,7 +124,7 @@ export function PremiumApp() {
   const pais = demo ? visitor.id : state.data.usuario.pais
   const locale = demo ? (FX_PER_USD[visitor.currency] ? visitor.locale : "es-US") : countryById(pais)?.locale
   const data: Payload = demo
-    ? { ...state.data, usuario: { nombre: "", pais, moneda: cur }, movimientos: sampleMovements(state.data.mes, k), perfil: demoPerfil(k) }
+    ? { ...state.data, usuario: { nombre: "", pais, moneda: cur }, movimientos: sampleMovements(state.data.mes, k), historico: sampleHistory(state.data.mes, sampleMovements(state.data.mes, k)), perfil: demoPerfil(k) }
     : state.data
   const reload = (mes: string) => { if (state.token) fetchBoard(state.token, mes).then((d) => setState({ ...state, data: d })).catch((e) => setState({ mode: "error", message: e.message })) }
   return <Board key={cur + data.mes} data={data} pais={pais} fmt={moneyFormatter(cur, locale)} demo={demo} token={state.token} onMonth={reload} />
@@ -182,7 +182,7 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
         </div>
       </nav>
 
-      {tab === "resumen" && <Resumen s={s} movs={movs} mes={data.mes} today={today} budget={budget} fixed={fixed} tips={tips} fmt={fmt} tip={tip} go={setTab} />}
+      {tab === "resumen" && <Resumen s={s} movs={movs} mes={data.mes} today={today} hist={data.historico || []} presupuestos={perfil.presupuestos} budget={budget} fixed={fixed} tips={tips} fmt={fmt} tip={tip} go={setTab} />}
       {tab === "presupuesto" && <Presupuesto perfil={perfil} update={update} budget={budget} s={s} fmt={fmt} />}
       {tab === "metas" && <Metas perfil={perfil} update={update} mes={today.slice(0, 7)} fmt={fmt} excedente={s.excedente} />}
       {tab === "plan" && (
@@ -221,14 +221,11 @@ function Kpi({ label, value, note, icon, tone }: { label: string; value: React.R
   )
 }
 
-function Resumen({ s, movs, mes, today, budget, fixed, tips, fmt, tip, go }: {
-  s: ReturnType<typeof summarizeMovements>; movs: Movement[]; mes: string; today: string; budget: ReturnType<typeof budgetStatus>; fixed: ReturnType<typeof fixedPayments>
+function Resumen({ s, movs, mes, today, hist, presupuestos, budget, fixed, tips, fmt, tip, go }: {
+  s: ReturnType<typeof summarizeMovements>; movs: Movement[]; mes: string; today: string; hist: MesHist[]; presupuestos: Record<string, number>
+  budget: ReturnType<typeof budgetStatus>; fixed: ReturnType<typeof fixedPayments>
   tips: ReturnType<typeof savingsTips>; fmt: Fmt; tip: React.MutableRefObject<TipApi | null>; go: (t: TabId) => void
 }) {
-  const curve = cumulativeByDay(movs, mes)
-  const shown = today.startsWith(mes) ? curve.slice(0, Number(today.slice(8, 10))) : curve
-  const labels = shown.map((_, i) => `${i + 1} ${MONTHS[Number(mes.slice(5, 7)) - 1].slice(0, 3)}`)
-  const cats = Object.entries(s.porCategoria).sort((a, b) => b[1] - a[1]).slice(0, 6)
   const cum = budget.cumplimiento
   return (
     <div className="grid grid-cols-12 gap-4">
@@ -241,11 +238,7 @@ function Resumen({ s, movs, mes, today, budget, fixed, tips, fmt, tip, go }: {
           note={cum === null ? "Define tu presupuesto" : `${budget.rows.filter((r) => r.estado !== "excedido").length} de ${budget.rows.length} categorías dentro`} tone={cum === null ? undefined : cum === 1 ? "verde" : cum >= 0.7 ? "amarillo" : "rojo"} />
       </div>
 
-      <BentoCard className="col-span-12 lg:col-span-7">
-        <h2 className="text-[17px] font-bold tracking-tight">Gasto acumulado del mes</h2>
-        <p className="text-sm text-muted-foreground">{budget.presupuestado > 0 ? `Presupuesto total: ${fmt.full(budget.presupuestado)}` : "Cómo crece tu gasto día a día."}</p>
-        <div className="mt-4">{s.gastos > 0 ? <LineChart tip={tip} labels={labels} format={fmt.compact} height={230} series={[{ name: "Gasto acumulado", values: shown, color: "var(--primary)" }]} /> : <div className="grid h-48 place-items-center text-sm text-muted-foreground">Aún no hay gastos este mes</div>}</div>
-      </BentoCard>
+      <SpendChart movs={movs} mes={mes} today={today} hist={hist} presupuestos={presupuestos} fmt={fmt} tip={tip} go={go} />
 
       <BentoCard className="col-span-12 lg:col-span-5">
         <div className="flex items-center justify-between"><h2 className="text-[17px] font-bold tracking-tight">Presupuesto</h2><button onClick={() => go("presupuesto")} className="text-sm font-semibold text-primary hover:underline">Editar</button></div>
@@ -254,21 +247,6 @@ function Resumen({ s, movs, mes, today, budget, fixed, tips, fmt, tip, go }: {
             {budget.rows.slice(0, 5).map((r) => <BudgetBar key={r.categoria} r={r} fmt={fmt} />)}
           </ul>
         ) : <EmptyHint text="Define cuánto quieres gastar por categoría y te avisamos por WhatsApp al llegar al 80 %." action="Crear presupuesto" onClick={() => go("presupuesto")} />}
-      </BentoCard>
-
-      <BentoCard className="col-span-12 lg:col-span-5">
-        <h2 className="text-[17px] font-bold tracking-tight">A dónde se va tu dinero</h2>
-        <ul className="mt-4 grid gap-3">
-          {cats.length ? cats.map(([id, v]) => {
-            const c = botCategory(id)
-            return (
-              <li key={id}>
-                <div className="flex justify-between text-sm"><span className="flex items-center gap-2 font-semibold"><i className="size-2.5 rounded-[3px]" style={{ background: c.color }} />{c.name}</span><span className="font-num font-bold">{fmt.full(v)} <span className="text-xs text-muted-foreground">{Math.round((v / s.gastos) * 100)}%</span></span></div>
-                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${(v / cats[0][1]) * 100}%`, background: c.color }} /></div>
-              </li>
-            )
-          }) : <li className="text-sm text-muted-foreground">Sin gastos registrados.</li>}
-        </ul>
       </BentoCard>
 
       <BentoCard className="col-span-12 lg:col-span-7">
@@ -299,6 +277,110 @@ function Resumen({ s, movs, mes, today, budget, fixed, tips, fmt, tip, go }: {
         </BentoCard>
       )}
     </div>
+  )
+}
+
+const VISTAS: { id: Vista; label: string }[] = [{ id: "diario", label: "Diario" }, { id: "mensual", label: "Mensual" }, { id: "anual", label: "Anual" }]
+const mon3 = (ym: string) => MONTHS[Number(ym.slice(5, 7)) - 1].slice(0, 3)
+
+/** Gráfica del resumen (diario / mensual / anual, todo o una categoría, frente a presupuesto) y torta por categoría. */
+function SpendChart({ movs, mes, today, hist, presupuestos, fmt, tip, go }: {
+  movs: Movement[]; mes: string; today: string; hist: MesHist[]; presupuestos: Record<string, number>; fmt: Fmt; tip: React.MutableRefObject<TipApi | null>; go: (t: TabId) => void
+}) {
+  const [vi, setVi] = React.useState(0)
+  const [cat, setCat] = React.useState("todo")
+  const [conPres, setConPres] = React.useState(false)
+  const vista = VISTAS[vi].id
+  const r = spendSeries({ vista, cat, conPresupuesto: conPres, movs, mes, today, hist, presupuestos })
+  const hasBudget = r.B > 0
+  const curYm = today.slice(0, 7)
+
+  // Categorías que aparecen en el selector: las que tienen gasto en el histórico o presupuesto
+  const used = new Set<string>([...Object.keys(presupuestos), ...hist.flatMap((h) => Object.keys(h.porCategoria)), ...movs.filter((m) => m.tipo === "gasto").map((m) => m.categoria)])
+  const opciones = BOT_CATEGORIES.filter((c) => c.tipo === "gasto" && used.has(c.id))
+  const color = cat === "todo" ? "var(--primary)" : botCategory(cat).color
+  const nombre = cat === "todo" ? (r.compare ? "Gasto en categorías con presupuesto" : "Todos los gastos") : catName(cat)
+
+  const labels = r.keys.map((k) => vista === "diario" ? `${Number(k.slice(8, 10))} ${mon3(k)}` : vista === "mensual" ? `${mon3(k)} ${k.slice(2, 4)}` : k)
+  const titles = r.keys.map((k) => vista === "diario" ? `${Number(k.slice(8, 10))} de ${MONTHS[Number(k.slice(5, 7)) - 1]}` : vista === "mensual" ? `${monthName(k)}${k === curYm ? " (en curso)" : ""}` : `${k}${k === curYm.slice(0, 4) ? " (en curso)" : ""}`)
+  const titulo = vista === "diario" ? `Gasto acumulado de ${MONTHS[Number(mes.slice(5, 7)) - 1]}` : vista === "mensual" ? "Gasto mes a mes" : "Gasto por año"
+
+  const last = r.gasto[r.gasto.length - 1] || 0
+  let resumen: string
+  if (r.compare && r.presupuesto) {
+    if (vista === "diario") {
+      const ritmo = r.presupuesto[r.presupuesto.length - 1]
+      resumen = `Llevas ${fmt.full(last)} de ${fmt.full(r.B)} (${Math.round((last / r.B) * 100)} %). A esta altura del mes, el ritmo del presupuesto es ${fmt.full(ritmo)}${last > ritmo ? ": vas por encima." : ": vas dentro."}`
+    } else {
+      const dentro = r.gasto.filter((g, i) => g <= r.presupuesto![i]).length
+      resumen = `${dentro} de ${r.gasto.length} ${vista === "mensual" ? (r.gasto.length === 1 ? "mes" : "meses") : (r.gasto.length === 1 ? "año" : "años")} dentro del presupuesto (${fmt.full(r.B)} al mes${vista === "anual" ? ", proporcional a los meses registrados" : ""}).`
+    }
+  } else {
+    const total = r.gasto.reduce((a, b) => a + b, 0)
+    resumen = vista === "diario" ? `Llevas ${fmt.full(last)} este mes.` : vista === "mensual" ? `Promedio de ${fmt.full(total / Math.max(1, r.gasto.length))} al mes en los últimos ${r.gasto.length} ${r.gasto.length === 1 ? "mes" : "meses"}.` : `Total registrado: ${fmt.full(total)}.`
+  }
+
+  const per = categoryShares(periodCategories(vista, movs, mes, hist))
+  const periodo = vista === "diario" ? monthName(mes) : vista === "mensual" ? "Últimos 12 meses" : `Año ${mes.slice(0, 4)}`
+  const pick = (id: string) => setCat((c) => (c === id ? "todo" : id))
+
+  return (
+    <>
+      <BentoCard className="col-span-12 lg:col-span-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[17px] font-bold tracking-tight">{titulo}</h2>
+            <p className="text-sm text-muted-foreground">{nombre}</p>
+          </div>
+          <Segmented items={VISTAS.map((v) => v.label)} value={vi} onChange={setVi} label="Periodo de la gráfica" />
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="var-grafica">Qué quieres ver</label>
+          <select id="var-grafica" value={cat} onChange={(e) => setCat(e.target.value)} className="h-[30px] max-w-full rounded-[10px] border bg-card px-2.5 text-xs font-semibold">
+            <option value="todo">Todos los gastos</option>
+            {opciones.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          <button type="button" aria-pressed={r.compare} disabled={!hasBudget} onClick={() => setConPres((v) => !v)}
+            title={hasBudget ? undefined : "Define un presupuesto para esta categoría"}
+            className={cn("inline-flex h-[30px] items-center gap-1.5 rounded-[10px] border px-2.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50", r.compare ? "border-foreground bg-foreground text-background" : "bg-card hover:bg-muted")}>
+            {r.compare ? <Check className="size-3.5" /> : <Target className="size-3.5" />}Frente a presupuesto
+          </button>
+          {!hasBudget && conPres && <button type="button" onClick={() => go("presupuesto")} className="text-xs font-semibold text-primary hover:underline">Crear presupuesto</button>}
+        </div>
+        <div className="mt-4">
+          {r.gasto.some((v) => v > 0) || r.compare ? (
+            vista === "diario"
+              ? <LineChart key={cat + r.compare} tip={tip} labels={labels} format={fmt.compact} height={230}
+                  series={[{ name: nombre, values: r.gasto, color }, ...(r.presupuesto ? [{ name: "Ritmo del presupuesto", values: r.presupuesto, color: "var(--muted-foreground)", dashed: true }] : [])]} />
+              : <BarChart key={vista + cat + r.compare} tip={tip} labels={labels} titles={titles} values={r.gasto} budget={r.presupuesto} color={color} name={nombre} format={fmt.compact} height={230} />
+          ) : <div className="grid h-48 place-items-center text-sm text-muted-foreground">Sin gastos en este periodo</div>}
+        </div>
+        <p className="mt-3 text-sm text-ink-2">{resumen}</p>
+        {r.compare && <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"><i className="inline-block h-0 w-4 shrink-0 border-t-2 border-dashed border-foreground" />{vista === "diario" ? "Ritmo del presupuesto: lo que llevarías gastado si repartes el presupuesto por igual en el mes." : "Presupuesto del periodo. En rojo, los periodos en que te pasaste."}{cat === "todo" ? " Solo cuentan las categorías con presupuesto." : ""}</p>}
+      </BentoCard>
+
+      <BentoCard className="col-span-12 lg:col-span-5">
+        <h2 className="text-[17px] font-bold tracking-tight">A dónde se va tu dinero</h2>
+        <p className="text-sm text-muted-foreground">{periodo} · toca una categoría para verla en la gráfica</p>
+        {per.items.length ? (
+          <div className="mt-4 flex flex-col items-center gap-5 sm:flex-row lg:flex-col xl:flex-row xl:items-start">
+            <Donut key={vista} items={per.items.map((i) => ({ id: i.id, name: catName(i.id), v: i.monto, color: botCategory(i.id).color }))} format={fmt.full} tip={tip} active={cat === "todo" ? null : cat} onSelect={pick} size={184}
+              center={<div><div className="text-[11px] text-muted-foreground">Total</div><div className="font-num text-lg font-bold">{fmt.compact(per.total)}</div></div>} />
+            <ul className="flex w-full min-w-0 flex-1 flex-col gap-1">
+              {per.items.map((i) => (
+                <li key={i.id}>
+                  <button type="button" onClick={() => pick(i.id)} aria-pressed={cat === i.id}
+                    className={cn("flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-sm transition-colors hover:bg-muted", cat === i.id && "bg-muted")}>
+                    <span className="flex min-w-0 items-center gap-2"><i className="size-2.5 shrink-0 rounded-[3px]" style={{ background: botCategory(i.id).color }} /><span className="truncate" title={catName(i.id)}>{catName(i.id)}</span></span>
+                    <span className="shrink-0 font-num"><b>{Math.round(i.pct * 100)}%</b> <span className="text-xs text-muted-foreground">{fmt.compact(i.monto)}</span></span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : <p className="mt-4 text-sm text-muted-foreground">Sin gastos registrados en este periodo.</p>}
+      </BentoCard>
+    </>
   )
 }
 

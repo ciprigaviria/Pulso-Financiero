@@ -139,3 +139,110 @@ export function cleanPerfil(p: Partial<Perfil> | null | undefined): Perfil {
     mesesFondo: [3, 4, 5, 6].includes(Number(p.mesesFondo)) ? Number(p.mesesFondo) : 3,
   }
 }
+
+/* ---------------- Gráfica del resumen: periodos, variables y participación por categoría ---------------- */
+
+/** Un mes del histórico: ingresos y gasto por categoría (lo arma Bot.gs con monthlyHistory_). */
+export type MesHist = { mes: string; ingresos: number; porCategoria: Record<string, number> }
+export type Vista = "diario" | "mensual" | "anual"
+
+/** Agrupa movimientos por mes. Misma lógica que monthlyHistory_ en Bot.gs (npm test compara ambas). */
+export function monthlyHistory(movs: Movement[]): MesHist[] {
+  const by: Record<string, Movement[]> = {}
+  for (const m of movs) (by[m.fecha.slice(0, 7)] ||= []).push(m)
+  return Object.keys(by).sort().map((mes) => { const s = summarizeMovements(by[mes]); return { mes, ingresos: s.ingresos, porCategoria: s.porCategoria } })
+}
+
+/** Diferencia exacta en meses entre dos "YYYY-MM" (puede ser 0 o negativa). */
+const monthDiff = (a: string, b: string) => { const [y1, m1] = a.split("-").map(Number); const [y2, m2] = b.split("-").map(Number); return (y2 - y1) * 12 + (m2 - m1) }
+
+/** Suma k meses a un "YYYY-MM". */
+export function addMonths(ym: string, k: number) {
+  const [y, m] = ym.split("-").map(Number)
+  const t = y * 12 + (m - 1) + k
+  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`
+}
+
+/** Gasto por categoría de cada mes; el mes cargado manda sobre el histórico (es la versión más fresca). */
+function mergedHistory(movs: Movement[], mes: string, hist: MesHist[]) {
+  const map: Record<string, Record<string, number>> = {}
+  for (const h of hist) map[h.mes] = h.porCategoria
+  if (movs.length || !map[mes]) map[mes] = summarizeMovements(movs).porCategoria
+  return map
+}
+
+/** Gasto por categoría del periodo que muestra la gráfica: el mes, los últimos 12 meses o el año del mes elegido. */
+export function periodCategories(vista: Vista, movs: Movement[], mes: string, hist: MesHist[]) {
+  if (vista === "diario") return summarizeMovements(movs).porCategoria
+  const map = mergedHistory(movs, mes, hist)
+  const keys = Object.keys(map).filter((k) => (vista === "anual" ? k.startsWith(mes.slice(0, 4)) : k > addMonths(mes, -12) && k <= mes))
+  const out: Record<string, number> = {}
+  for (const k of keys) for (const [c, v] of Object.entries(map[k])) out[c] = r2((out[c] || 0) + v)
+  return out
+}
+
+/**
+ * Serie de gasto para la gráfica del resumen.
+ * - diario: gasto acumulado día a día del mes (hasta hoy); el presupuesto es el ritmo lineal del mes.
+ * - mensual: gasto de cada mes, últimos 12 meses hasta el mes elegido; presupuesto mensual fijo.
+ * - anual: gasto de cada año; presupuesto = presupuesto mensual × meses registrados de ese año.
+ * cat = "todo" o el id de una categoría. Con presupuesto y "todo", solo cuentan las categorías presupuestadas
+ * (comparar todo el gasto contra un presupuesto parcial sería engañoso).
+ */
+export function spendSeries(o: { vista: Vista; cat: string; conPresupuesto: boolean; movs: Movement[]; mes: string; today: string; hist: MesHist[]; presupuestos: Record<string, number> }) {
+  const budgeted = Object.keys(o.presupuestos).filter((k) => o.presupuestos[k] > 0)
+  const B = r2(o.cat === "todo" ? budgeted.reduce((a, k) => a + o.presupuestos[k], 0) : o.presupuestos[o.cat] || 0)
+  const compare = o.conPresupuesto && B > 0
+  const inc = (c: string) => (o.cat === "todo" ? !compare || budgeted.includes(c) : c === o.cat)
+  const pick = (pc: Record<string, number>) => r2(Object.entries(pc).filter(([c]) => inc(c)).reduce((a, [, v]) => a + v, 0))
+
+  if (o.vista === "diario") {
+    const [y, m] = o.mes.split("-").map(Number)
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    const shown = o.today.startsWith(o.mes) ? Number(o.today.slice(8, 10)) : days
+    const daily: number[] = Array(days).fill(0)
+    for (const x of o.movs) if (x.tipo === "gasto" && x.fecha.startsWith(o.mes) && inc(x.categoria)) daily[Number(x.fecha.slice(8, 10)) - 1] += x.monto
+    let acc = 0
+    const gasto = daily.map((v) => r2((acc += v))).slice(0, shown)
+    return { keys: gasto.map((_, i) => `${o.mes}-${String(i + 1).padStart(2, "0")}`), gasto, presupuesto: compare ? gasto.map((_, i) => r2((B * (i + 1)) / days)) : null, B, compare }
+  }
+
+  const map = mergedHistory(o.movs, o.mes, o.hist)
+  const months = Object.keys(map).sort()
+  const first = months[0], last = months[months.length - 1]
+
+  if (o.vista === "mensual") {
+    const n = Math.max(1, Math.min(12, monthDiff(first, o.mes) + 1))
+    const keys = Array.from({ length: n }, (_, i) => addMonths(o.mes, i - n + 1))
+    const gasto = keys.map((k) => pick(map[k] || {}))
+    return { keys, gasto, presupuesto: compare ? keys.map(() => B) : null, B, compare }
+  }
+
+  const years: string[] = []
+  for (let yy = Number(first.slice(0, 4)); yy <= Number(last.slice(0, 4)); yy++) years.push(String(yy))
+  const gasto = years.map((yy) => r2(months.filter((k) => k.startsWith(yy)).reduce((a, k) => a + pick(map[k]), 0)))
+  const presupuesto = compare ? years.map((yy) => {
+    const from = first > `${yy}-01` ? first : `${yy}-01`, to = last < `${yy}-12` ? last : `${yy}-12`
+    return r2(B * (monthDiff(from, to) + 1))
+  }) : null
+  return { keys: years, gasto, presupuesto, B, compare }
+}
+
+/** Participación de cada categoría en el gasto (para la torta). Los % suman 1. */
+export function categoryShares(porCategoria: Record<string, number>) {
+  const items = Object.entries(porCategoria).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
+  const total = r2(items.reduce((a, [, v]) => a + v, 0))
+  return { total, items: items.map(([id, monto]) => ({ id, monto, pct: total > 0 ? monto / total : 0 })) }
+}
+
+/** Histórico ficticio del ejemplo: 17 meses anteriores con variaciones por categoría. */
+export function sampleHistory(mes: string, movs: Movement[]): MesHist[] {
+  const base = summarizeMovements(movs)
+  return Array.from({ length: 17 }, (_, i) => {
+    const m = addMonths(mes, i - 17)
+    const porCategoria: Record<string, number> = {}
+    Object.entries(base.porCategoria).forEach(([c, v], j) => { porCategoria[c] = Math.round(v * (0.8 + ((i * 7 + j * 5) % 9) * 0.06)) })
+    if (Number(m.slice(5, 7)) === 12) porCategoria.compras = Math.round((porCategoria.compras || 0) * 2.4)
+    return { mes: m, ingresos: base.ingresos, porCategoria }
+  })
+}

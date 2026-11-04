@@ -517,6 +517,13 @@ function summarize_(movs) {
   return r;
 }
 
+/** Histórico por mes (ingresos y gasto por categoría) para las vistas mensual y anual del tablero. */
+function monthlyHistory_(movs) {
+  const by = {};
+  movs.forEach(m => { const k = String(m.fecha).slice(0, 7); (by[k] = by[k] || []).push(m); });
+  return Object.keys(by).sort().map(mes => { const s = summarize_(by[mes]); return { mes: mes, ingresos: s.ingresos, porCategoria: s.porCategoria }; });
+}
+
 function round2_(x) { return Math.round(x * 100) / 100; }
 
 function summaryText_(from, country, today, c) {
@@ -750,6 +757,7 @@ function movementsFor_(token, mes) {
     usuario: { nombre: String(user.nombre || '').split(' ')[0], pais: country.id, moneda: country.currency },
     mes: month, meses: months.slice(0, 24), hoy: Utilities.formatDate(new Date(), country.tz, 'yyyy-MM-dd'),
     perfil: publicPerfil_(getPerfil_(user.wa_id)),
+    historico: monthlyHistory_(all).slice(-60),
     movimientos: all.filter(m => m.fecha.slice(0, 7) === month).map(m => ({ id: m.id, fecha: m.fecha, tipo: m.tipo, monto: m.monto, categoria: m.categoria, descripcion: m.descripcion }))
   };
 }

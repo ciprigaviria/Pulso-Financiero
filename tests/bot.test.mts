@@ -55,7 +55,7 @@ function makeEnv(extraProps: Record<string, string> = {}) {
     },
   };
   vm.createContext(env);
-  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
+  vm.runInContext(src + '\n;globalThis.__bot = { doGet, doPost, setup, cleanPerfil_, monthlyHistory_, parseAmounts_, summarize_, fmtMoney_, countryFromPhone_, countryFromText_, categoryFromText_, ruleParse_, checkMovements_, CATEGORIES, COUNTRIES };', env);
   const bot = env.__bot;
   bot.setup();
   let n = 0;
@@ -287,6 +287,8 @@ if (dumpIdx > -1) {
   assert.ok(x.replies[0].includes('⚠ Vas en el 85% de tu presupuesto de Restaurantes y domicilios. Te quedan $ 15.000.'), x.replies[0]);
   x = say(CO, 'pizza 30 mil');
   assert.ok(x.replies[0].includes('⚠ Te pasaste en Restaurantes y domicilios por $ 15.000 (115% del presupuesto).'), x.replies[0]);
+  g = bot.doGet({ parameter: { action: 'tablero', t: token } });
+  assert.deepEqual(g.historico, [{ mes: TODAY.slice(0, 7), ingresos: 0, porCategoria: { comida: 115000 } }]);
   // Aprende de una corrección: "rappi" mal clasificado → mercado; la próxima vez ya va a mercado
   x = say(CO, 'gastos varios 20 mil');
   x = say(CO, 'mercado');
@@ -313,4 +315,19 @@ if (dumpIdx > -1) {
   ];
   for (const p of samples) assert.deepEqual(JSON.parse(JSON.stringify(bot.cleanPerfil_(p))), cleanPerfil(p as any));
   console.log('✓ Limpieza del perfil idéntica en el bot y en el sitio');
+}
+
+// ---- 9. Histórico mensual del tablero: el bot y el sitio agrupan igual ----
+{
+  const { bot } = makeEnv();
+  const { monthlyHistory } = await import('../src/lib/premium.ts');
+  const gastoCats = BOT_CATEGORIES.map((c) => c.id);
+  let sd = 9; const rnd = (k: number) => { sd = (sd * 1103515245 + 12345) % 2147483648; return Math.floor((sd / 2147483648) * k); };
+  for (let t = 0; t < 200; t++) {
+    const movs = Array.from({ length: rnd(80) }, (_, i) => ({ id: 'm' + i, fecha: `${2024 + rnd(3)}-${String(1 + rnd(12)).padStart(2, '0')}-${String(1 + rnd(28)).padStart(2, '0')}`, tipo: rnd(4) ? 'gasto' : 'ingreso', monto: (rnd(9000000) + 1) / 100, categoria: gastoCats[rnd(gastoCats.length)], descripcion: 'x' }));
+    assert.deepEqual(JSON.parse(JSON.stringify(bot.monthlyHistory_(movs))), monthlyHistory(movs as any));
+  }
+  const g = bot.doGet({ parameter: { action: 'tablero', t: 'no-existe' } });
+  assert.equal(g.ok, false);
+  console.log('✓ Histórico mensual idéntico en el bot y en el sitio (200 casos)');
 }
