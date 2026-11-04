@@ -115,6 +115,26 @@
   background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1px, transparent 1px 10px);
 }
 
+
+/* Animaciones de la portada */
+@keyframes pulso-float { 0%, 100% { transform: translate(-50%, -50%) translateY(0); } 50% { transform: translate(-50%, -50%) translateY(-10px); } }
+@keyframes pulso-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes pulso-dash { to { stroke-dashoffset: -40; } }
+.animate-marquee { animation: pulso-marquee 40s linear infinite; }
+
+/* Grabado tipo billete (guilloché): rosetas de círculos finos, muy tenues */
+.bg-guilloche-dark, .bg-guilloche {
+  background-size: 220px 220px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 30%, black 10%, transparent 70%);
+  mask-image: radial-gradient(ellipse at 50% 30%, black 10%, transparent 70%);
+}
+.bg-guilloche-dark {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.07' stroke-width='.6'%3E%3Ccircle cx='110' cy='110' r='40'/%3E%3Ccircle cx='150' cy='110' r='40'/%3E%3Ccircle cx='70' cy='110' r='40'/%3E%3Ccircle cx='110' cy='150' r='40'/%3E%3Ccircle cx='110' cy='70' r='40'/%3E%3Ccircle cx='138' cy='138' r='40'/%3E%3Ccircle cx='82' cy='82' r='40'/%3E%3Ccircle cx='138' cy='82' r='40'/%3E%3Ccircle cx='82' cy='138' r='40'/%3E%3Ccircle cx='0' cy='0' r='40'/%3E%3Ccircle cx='220' cy='0' r='40'/%3E%3Ccircle cx='0' cy='220' r='40'/%3E%3Ccircle cx='220' cy='220' r='40'/%3E%3C/g%3E%3C/svg%3E");
+}
+.bg-guilloche {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%230e7c66' stroke-opacity='.08' stroke-width='.6'%3E%3Ccircle cx='110' cy='110' r='40'/%3E%3Ccircle cx='150' cy='110' r='40'/%3E%3Ccircle cx='70' cy='110' r='40'/%3E%3Ccircle cx='110' cy='150' r='40'/%3E%3Ccircle cx='110' cy='70' r='40'/%3E%3Ccircle cx='138' cy='138' r='40'/%3E%3Ccircle cx='82' cy='82' r='40'/%3E%3Ccircle cx='138' cy='82' r='40'/%3E%3Ccircle cx='82' cy='138' r='40'/%3E%3Ccircle cx='0' cy='0' r='40'/%3E%3Ccircle cx='220' cy='0' r='40'/%3E%3Ccircle cx='0' cy='220' r='40'/%3E%3Ccircle cx='220' cy='220' r='40'/%3E%3C/g%3E%3C/svg%3E");
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }

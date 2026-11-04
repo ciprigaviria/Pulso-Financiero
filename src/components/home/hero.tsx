@@ -1,99 +1,104 @@
 "use client"
 
-// Portada en negro, inspirada en la plantilla "SaaS template": aviso tipo píldora, título blanco
-// con degradado, botón blanco y, debajo, el tablero real (no una imagen) dentro de un marco con brillo.
-// El tablero del marco usa los datos de ejemplo en la moneda del visitante.
+// Portada: título con palabras resaltadas, el teléfono con el asistente escribiendo en vivo y,
+// alrededor, íconos de gastos que flotan y se van "metiendo" en el teléfono al bajar la página.
 import * as React from "react"
 import Link from "next/link"
-import { motion } from "motion/react"
-import { ArrowRight, Lock } from "lucide-react"
+import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react"
+import { ArrowRight, Car, Coffee, CreditCard, Home, Lightbulb, Lock, PiggyBank, Plane, Receipt, ShoppingCart, Smartphone, Target, TrendingUp, Utensils, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useSize } from "@/components/dashboard/charts"
-import { DashboardView } from "@/components/dashboard/dashboard-view"
-import { CountryPicker } from "@/components/site/country-picker"
-import { SAMPLE } from "@/lib/sample"
-import { useSampleData } from "@/lib/use-country"
+import { ChatDemo } from "@/components/home/chat-demo"
 import { annualPerMonth, fmtUsd, trialText } from "@/lib/plans"
 import { config } from "@/config"
 
-/** Muestra un componente ancho escalado para que quepa en el contenedor, como una captura viva. */
-function ScaledPreview({ children, width, visibleHeight }: { children: React.ReactNode; width: number; visibleHeight: number }) {
-  const [ref, { w }] = useSize()
-  const scale = w ? Math.min(1, w / width) : 0
+type Tile = { icon: LucideIcon; x: number; y: number; label?: string; tint: string }
+// Posición en % respecto al centro del teléfono (x negativo = izquierda)
+const TILES: Tile[] = [
+  { icon: ShoppingCart, x: -42, y: -30, label: "Mercado", tint: "#14b88f" },
+  { icon: Coffee, x: -30, y: -6, tint: "#f2b84b" },
+  { icon: Car, x: -44, y: 14, label: "Transporte", tint: "#6fd3b4" },
+  { icon: Home, x: -28, y: 34, tint: "#0e7c66" },
+  { icon: Receipt, x: -40, y: 52, tint: "#e0742a" },
+  { icon: Utensils, x: -20, y: -36, tint: "#f39a6b" },
+  { icon: TrendingUp, x: 40, y: -32, label: "Inversión", tint: "#5b8def" },
+  { icon: PiggyBank, x: 29, y: -8, tint: "#14b88f" },
+  { icon: Target, x: 44, y: 12, label: "Metas", tint: "#f2b84b" },
+  { icon: CreditCard, x: 27, y: 32, tint: "#d6453d" },
+  { icon: Lightbulb, x: 42, y: 50, tint: "#3fbf9b" },
+  { icon: Plane, x: 20, y: -38, tint: "#8fb2f5" },
+  { icon: Smartphone, x: -14, y: 58, tint: "#6fd3b4" },
+]
+
+function FloatingTile({ t, i, progress }: { t: Tile; i: number; progress: MotionValue<number> }) {
+  const reduce = useReducedMotion()
+  // Al bajar, cada ícono viaja hacia el teléfono y se desvanece
+  const x = useTransform(progress, [0, 0.55], [`${t.x * 1.0}vw`, "0vw"])
+  const y = useTransform(progress, [0, 0.55], [`${t.y * 0.9}vh`, "8vh"])
+  const scale = useTransform(progress, [0, 0.55], [1, 0.35])
+  const opacity = useTransform(progress, [0, 0.4, 0.55], [1, 0.9, 0])
+  const Icon = t.icon
   return (
-    <div ref={ref} className="relative w-full overflow-hidden" style={{ height: w ? visibleHeight * scale : visibleHeight * 0.5 }}>
-      <div inert aria-hidden="true" style={{ width, transform: `scale(${scale})`, transformOrigin: "top left", opacity: scale ? 1 : 0, transition: "opacity .4s" }}>
-        {children}
+    <motion.div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-[46%] hidden md:block" style={reduce ? { x: `${t.x}vw`, y: `${t.y * 0.9}vh` } : { x, y, scale, opacity }}>
+      <div className="-translate-x-1/2 -translate-y-1/2" style={{ animation: reduce ? undefined : `pulso-float ${5 + (i % 4)}s ease-in-out ${i * 0.35}s infinite` }}>
+        <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] p-2.5 shadow-[0_10px_30px_-10px_rgba(0,0,0,.6)] backdrop-blur-md">
+          <span className="grid size-8 place-items-center rounded-xl" style={{ background: t.tint + "26", color: t.tint }}><Icon className="size-4" /></span>
+          {t.label && <span className="pr-1 text-xs font-semibold text-white/80">{t.label}</span>}
+        </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 export function Hero() {
-  const data = useSampleData()
-  const [frameRef, { w }] = useSize()
-  const inner = w && w < 640 ? 860 : 1180
+  const ref = React.useRef<HTMLElement>(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] })
+  const phoneY = useTransform(scrollYProgress, [0, 1], ["0%", "-6%"])
 
   return (
-    <section className="relative overflow-hidden bg-black text-white">
-      {/* brillo y cuadrícula de fondo */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[38%] mx-auto h-[620px] max-w-5xl rounded-full opacity-60 blur-3xl"
+    <section ref={ref} className="relative overflow-hidden bg-black text-white">
+      {/* fondo: brillo verde, cuadrícula y grabado tipo billete */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-[30%] mx-auto h-[700px] max-w-5xl rounded-full opacity-60 blur-3xl"
         style={{ background: "radial-gradient(ellipse at center, rgba(20,184,143,.45), rgba(20,184,143,.08) 45%, transparent 70%)" }} />
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]"
-        style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "64px 64px", maskImage: "radial-gradient(ellipse at 50% 0%, black 20%, transparent 65%)" }} />
+      <div aria-hidden="true" className="bg-guilloche-dark pointer-events-none absolute inset-0 opacity-60" />
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-        className="relative mx-auto flex max-w-6xl flex-col items-center px-5 pb-10 pt-14 text-center md:pt-20">
+        className="relative mx-auto flex max-w-6xl flex-col items-center px-5 pb-6 pt-28 text-center md:pt-32">
         <aside className="mb-8 inline-flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs backdrop-blur-sm">
           <span className="font-semibold text-white">Finanzas para no financieros</span>
           <span className="hidden text-white/30 sm:inline">·</span>
-          <span className="text-white/60">Nuevo: registra tus gastos por WhatsApp</span>
-          <Link href="/tablero?ejemplo" className="flex items-center gap-1 text-white/60 transition-colors hover:text-white">
-            Ver ejemplo <ArrowRight className="size-3" />
-          </Link>
+          <span className="text-white/60">Funciona en 20 países y sus monedas</span>
+          <Link href="/#como-funciona" className="flex items-center gap-1 text-white/60 transition-colors hover:text-white">Ver cómo <ArrowRight className="size-3" /></Link>
         </aside>
 
-        <h1 className="max-w-5xl text-[2.6rem] font-semibold leading-[1.04] tracking-[-0.04em] md:text-6xl lg:text-[4.25rem]"
-          style={{ background: "linear-gradient(to bottom, #fff 30%, rgba(255,255,255,.62))", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-          Escribe tus gastos por WhatsApp. <br className="hidden sm:block" /><span className="font-serif font-normal italic tracking-[-0.01em]">Pulso hace el resto.</span>
+        <h1 className="max-w-4xl text-[2.5rem] font-semibold leading-[1.12] tracking-[-0.035em] md:text-6xl lg:text-[4.1rem]">
+          Escribe tus gastos por{" "}
+          <span className="relative inline-flex items-center gap-2 rounded-2xl bg-[#25d366]/15 px-3 align-middle text-[#5fe39a] ring-1 ring-[#25d366]/30">
+            <svg viewBox="0 0 24 24" className="size-[0.8em]" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3a.5.5 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.8 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7a2.8 2.8 0 0 0 1.9-1.3 2.3 2.3 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3Z" /></svg>
+            WhatsApp
+          </span>
+          . <br className="hidden sm:block" />
+          <span className="text-white/60">Pulso</span>{" "}
+          <span className="font-serif font-normal italic tracking-[-0.01em] text-white">hace el resto.</span>
         </h1>
 
         <p className="mt-6 max-w-2xl text-base text-white/60 md:text-lg">
-          Mandas “almuerzo 25 mil” y tu tablero se actualiza: gastos, ingresos, cumplimiento de tu presupuesto, cuánto te queda y recomendaciones de ahorro e inversión. Empieza con un diagnóstico gratis de 5 minutos.
+          Mandas “almuerzo 25 mil” y tu tablero se actualiza: gastos, ingresos, cumplimiento de tu presupuesto, cuánto te queda y recomendaciones de ahorro e inversión.
         </p>
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="white" className="rounded-lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/#como-funciona">Ver cómo funciona</Link></Button>
+          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/#precios">Ver planes</Link></Button>
         </div>
         <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Diagnóstico gratis y sin registro · {config.premiumName} desde {fmtUsd(annualPerMonth)} al mes{trialText ? ` · ${trialText}` : ""}</p>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }}
-        className="relative mx-auto max-w-6xl px-3 pb-16 sm:px-5">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 shadow-[0_0_80px_-20px_rgba(20,184,143,.5)] sm:p-2.5">
-          <div className="mb-1.5 flex items-center gap-1.5 px-2 pt-0.5 sm:mb-2.5">
-            <i className="size-2.5 rounded-full bg-white/20" /><i className="size-2.5 rounded-full bg-white/20" /><i className="size-2.5 rounded-full bg-white/20" />
-            <span className="mx-auto hidden rounded-md bg-white/5 px-3 py-0.5 text-[11px] text-white/40 sm:block">pulso · mi tablero</span>
-          </div>
-          <div ref={frameRef} className="overflow-hidden rounded-xl bg-background">
-            <div className="p-3 sm:p-4">
-              <ScaledPreview width={inner} visibleHeight={inner < 1000 ? 1500 : 1180}>
-                <DashboardView key={data.currency} data={data} testCode={SAMPLE.testCode} readOnly />
-              </ScaledPreview>
-            </div>
-          </div>
-        </div>
-        <div aria-hidden="true" className="pointer-events-none absolute right-2 top-[15.5rem] z-10 hidden w-64 flex-col gap-2 lg:flex xl:-right-8">
-          <div className="self-end rounded-xl rounded-tr-sm bg-[#d9fdd3] px-3 py-2 text-[13px] text-[#111b21] shadow-xl">almuerzo 25 mil</div>
-          <div className="rounded-xl rounded-tl-sm bg-white px-3 py-2 text-[13px] text-[#111b21] shadow-xl">✓ Gasto · Restaurantes<br /><span className="text-[#667781]">Vas en el 62% de tu presupuesto</span></div>
-        </div>
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-b from-transparent via-black/85 to-black" />
-        <div className="relative -mt-24 flex flex-wrap items-center justify-center gap-3">
-          <p className="text-xs text-white/50">Ejemplo ilustrativo con datos ficticios</p>
-          <CountryPicker tone="dark" />
-        </div>
-      </motion.div>
+      <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-6">
+        {TILES.map((t, i) => <FloatingTile key={i} t={t} i={i} progress={scrollYProgress} />)}
+        <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.8 }} style={{ y: phoneY }} className="relative z-10">
+          <ChatDemo />
+          <p className="mt-4 text-center text-xs text-white/40">Conversación de ejemplo con datos ficticios</p>
+        </motion.div>
+      </div>
     </section>
   )
 }

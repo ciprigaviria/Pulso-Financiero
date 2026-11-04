@@ -7,11 +7,12 @@ import { DashboardPreview } from "@/components/home/dashboard-preview"
 import { Personas } from "@/components/home/personas"
 import { BetaForm } from "@/components/home/beta-form"
 import { AccessSteps } from "@/components/home/access-steps"
-import { ChatDemo } from "@/components/home/chat-demo"
+import { Hub } from "@/components/home/hub"
+import { FeatureCards } from "@/components/home/feature-cards"
+import { CountryMarquee } from "@/components/home/country-marquee"
 import { Button } from "@/components/ui/button"
 import Pricing from "@/components/ui/pricing"
-import { CalendarCheck, LayoutDashboard, MessageCircle, PiggyBank, Target, TrendingUp } from "lucide-react"
-import { PREMIUM_FEATURES, trialText } from "@/lib/plans"
+import { trialText } from "@/lib/plans"
 import { config } from "@/config"
 
 const STEPS = [
@@ -19,8 +20,6 @@ const STEPS = [
   { n: "02", title: "Escribe tus gastos por WhatsApp", text: "Con Premium, le escribes al asistente como a un amigo: “almuerzo 25 mil”, “me pagaron la quincena”. Él entiende, clasifica y confirma." },
   { n: "03", title: "Tu tablero se actualiza solo", text: "Gastos, ingresos, cumplimiento de tu presupuesto, cuánto te queda y recomendaciones de ahorro e inversión, al día." },
 ]
-
-const FEATURE_ICONS = [MessageCircle, LayoutDashboard, Target, PiggyBank, TrendingUp, CalendarCheck]
 
 const FAQ = [
   ["¿El diagnóstico es gratis?", "Sí, siempre. El puntaje, el semáforo de las 5 áreas, los hallazgos y tu potencial de mejora son gratis y sin registro. Pagas solo si quieres Pulso Premium."],
@@ -48,6 +47,7 @@ export default function Home() {
       <SiteHeader tone="dark" />
       <main>
         <Hero />
+        <CountryMarquee />
 
         <section id="como-funciona" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-20">
           <div className="grid items-center gap-12 md:grid-cols-[1.1fr_.9fr]">
@@ -71,29 +71,19 @@ export default function Home() {
               </div>
             </div>
             <div>
-              <ChatDemo />
-              <p className="mt-3 text-center text-xs text-muted-foreground">Conversación de ejemplo con datos ficticios</p>
+              <Hub />
+              <p className="mt-3 text-center text-xs text-muted-foreground">Todo lo que registras alimenta tu tablero, tus metas y tus recomendaciones.</p>
             </div>
           </div>
         </section>
 
-        <section id="incluye" className="scroll-mt-20 bg-[#0f1a17] py-20 text-white">
-          <div className="mx-auto max-w-6xl px-5">
-            <p className="mb-2 text-sm font-semibold text-brand-bright">{config.premiumName}</p>
+        <section id="incluye" className="relative scroll-mt-20 overflow-hidden border-y bg-card py-20">
+          <div aria-hidden="true" className="bg-guilloche pointer-events-none absolute inset-0" />
+          <div className="relative mx-auto max-w-6xl px-5">
+            <p className="mb-2 text-sm font-semibold text-primary">{config.premiumName}</p>
             <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight md:text-4xl">Todo lo que necesitas para que tu dinero rinda</h2>
-            <p className="mt-3 max-w-2xl text-white/60">Un asistente que registra por ti y un tablero que te dice qué hacer. {trialText ? `Pruébalo ${trialText}.` : ""}</p>
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {PREMIUM_FEATURES.map((f, i) => {
-                const Icon = FEATURE_ICONS[i]
-                return (
-                  <div key={f.title} className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
-                    <span className="grid size-11 place-items-center rounded-xl bg-brand-bright/15 text-brand-bright"><Icon className="size-5" /></span>
-                    <h3 className="mt-4 text-lg font-extrabold">{f.title}</h3>
-                    <p className="mt-1.5 text-sm text-white/60">{f.text}</p>
-                  </div>
-                )
-              })}
-            </div>
+            <p className="mt-3 max-w-2xl text-ink-2">Un asistente que registra por ti y un tablero que te dice qué hacer. {trialText ? `Pruébalo ${trialText}.` : ""}</p>
+            <div className="mt-8"><FeatureCards /></div>
           </div>
         </section>
 

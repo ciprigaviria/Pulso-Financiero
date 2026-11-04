@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils"
 export function SiteHeader({ minimal = false, tone = "light" }: { minimal?: boolean; tone?: "light" | "dark" }) {
   const dark = tone === "dark"
   return (
-    <header className={cn("sticky top-0 z-30 border-b backdrop-blur-md", dark ? "border-white/10 bg-black/95 text-white" : "bg-background/80")}>
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
+    <header className={cn("sticky top-0 z-30", dark ? "-mb-[68px] px-3 pt-3 text-white" : "border-b bg-background/80 backdrop-blur-md")}>
+      <div className={cn("mx-auto flex items-center justify-between", dark ? "h-14 max-w-5xl rounded-full border border-white/15 bg-black/70 pl-4 pr-2 shadow-[0_10px_30px_-10px_rgba(0,0,0,.7)] backdrop-blur-xl" : "h-16 max-w-6xl px-5")}>
         <Link href="/" className="flex items-center gap-2.5 font-extrabold tracking-tight" aria-label={`${config.brand}, inicio`}>
           <BrandMark />
           <span>{config.brand}</span>
