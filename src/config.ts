@@ -20,12 +20,12 @@ export const config = {
   currency: "USD",
 
   // URL de la aplicación web de Apps Script de pagos (termina en /exec).
-  appsScriptUrl: "",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycbxkH1VX5Lu2seDjQcS-jJCrv3rqKj-CIwLCZAo6b15LUTj63pAn7Q0HuD9Vvn74ndePtg/exec",
 
-  contactEmail: "hola@tudominio.com",
+  contactEmail: "pulsofinancieroapp@gmail.com",
 
   // Asistente de WhatsApp. URL /exec del Apps Script del bot y número de WhatsApp
   // en formato internacional sin "+" ni espacios (ej. 15551234567). Vacíos = aún no conectado.
-  botScriptUrl: "",
+  botScriptUrl: "https://script.google.com/macros/s/AKfycbyqo_lUiUhqwrqFO61ZsgTDt-UvGPYxn_HnDbePJ6u1Gan_o5nEc9IeUEZT9ulEJJ6F/exec",
   botWhatsapp: "",
 }
