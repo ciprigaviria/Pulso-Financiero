@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight, Mail } from "lucide-react"
+import { ArrowRight, Mail, MessageCircle } from "lucide-react"
 import { SiteHeader } from "@/components/site/site-header"
 import { SiteFooter } from "@/components/site/site-footer"
 import { Hero } from "@/components/home/hero"
@@ -10,7 +10,7 @@ import { FeatureCards } from "@/components/home/feature-cards"
 import { CountryMarquee } from "@/components/home/country-marquee"
 import { Button } from "@/components/ui/button"
 import Pricing from "@/components/ui/pricing"
-import { trialText } from "@/lib/plans"
+import { trialText, demoUrl } from "@/lib/plans"
 import { config } from "@/config"
 
 const STEPS = [
@@ -22,6 +22,7 @@ const STEPS = [
 const FAQ = [
   ["¿El diagnóstico es gratis?", "Sí, siempre. El puntaje, el semáforo de las 5 áreas, los hallazgos y tu potencial de mejora son gratis y sin registro. Pagas solo si quieres Pulso Premium."],
   ["¿Cuánto cuesta Pulso Premium?", `USD ${config.priceMonthly.toFixed(2).replace(".", ",")} al mes o USD ${config.priceAnnual.toFixed(2).replace(".", ",")} al año, que equivale a pagar menos de 10 meses. ${config.trialDays ? `Los primeros ${config.trialDays} días son gratis.` : ""}`],
+  ["¿Puedo probar el asistente antes de pagar?", `Sí. Escríbele “demo” al asistente${config.botWhatsapp ? " con el botón “Probar el asistente gratis”" : ""}: durante 24 horas puedes anotar hasta 10 gastos o ingresos y recibir tu tablero en imagen y PDF, sin tarjeta. Es una vez por número. Al terminar borramos lo que anotaste; si te suscribes antes, se queda en tu cuenta. También puedes ver el tablero de ejemplo en este sitio.`],
   ["¿Cómo funciona la prueba gratis?", `Te suscribes con tu tarjeta y no se cobra nada durante ${config.trialDays} días. Si cancelas antes de que terminen, no pagas. Si sigues, se cobra el plan que elegiste.`],
   ["¿Cómo cancelo?", "Desde el enlace de administración de tu suscripción que llega en el correo de compra, en cualquier momento. Conservas el acceso hasta el final del periodo que ya pagaste. Después, tu tablero queda en modo consulta durante 90 días por si quieres volver, y luego borramos tus datos."],
   ["¿Cómo registro mis gastos?", "Le escribes al asistente de WhatsApp como hablas: “taxi 12 mil y café 6 mil”, “arriendo 1,2 millones”, “me pagaron 2 palos”. También puedes mandarle la foto de un recibo, pedirle “resumen” o preguntarle “cuánto llevo en restaurantes”. Cada lunes te envía el resumen de tu semana."],
@@ -66,7 +67,9 @@ export default function Home() {
               </ol>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-                <Button asChild size="lg" variant="outline"><Link href="/#precios">Ver planes</Link></Button>
+                {demoUrl
+                  ? <Button asChild size="lg" variant="outline"><a href={demoUrl} target="_blank" rel="noopener noreferrer"><MessageCircle /> Probar en WhatsApp</a></Button>
+                  : <Button asChild size="lg" variant="outline"><Link href="/#precios">Ver planes</Link></Button>}
               </div>
             </div>
             <div>

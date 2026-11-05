@@ -16,7 +16,8 @@
  * Propiedades del script: WA_TOKEN, WA_PHONE_NUMBER_ID, RELAY_SECRET, ANTHROPIC_API_KEY,
  * y opcionales SITE_URL, PAGOS_URL (activa el cobro), BETA_NUMEROS, CONTACTO, RENOVAR_URL, DIAS_CONSULTA,
  * WA_PLANTILLA_RESUMEN, WA_PLANTILLA_IDIOMA, RESUMEN_HORA, LLM_MODEL, GRAPH_VERSION, MAX_MENSAJES_DIA, MAX_FOTOS_DIA,
- * TABLERO_IMAGEN ("no" para enviar solo el enlace), MAX_TABLEROS_DIA.
+ * TABLERO_IMAGEN ("no" para enviar solo el enlace), MAX_TABLEROS_DIA,
+ * DEMO ("no" lo apaga), DEMO_HORAS, DEMO_MOVIMIENTOS, DEMO_MENSAJES (modo demo: escribir "demo" sin suscripción).
  * Ejecuta instalarTareas() una vez para la revisión de suscripciones y el resumen semanal.
  *
  * Las categorías (sección 2) deben coincidir con src/lib/bot-categories.ts; `npm test` lo verifica.
@@ -42,6 +43,10 @@ const BOT_DEFAULTS = {
   WA_PLANTILLA_IDIOMA: 'es',
   RESUMEN_HORA: '9',
   TABLERO_IMAGEN: 'si',
+  DEMO: 'si',
+  DEMO_HORAS: '24',
+  DEMO_MOVIMIENTOS: '10',
+  DEMO_MENSAJES: '30',
   MAX_TABLEROS_DIA: '6',
   PREMIUM_NAME: 'Pulso Premium'
 };
@@ -423,8 +428,10 @@ function handleMessage_(m, profileName, c) {
   if (!gated && String(c.BETA_NUMEROS || '').trim() && !beta) return 'fuera de la beta';
 
   let user = getUser_(from);
+  // Modo demo: cualquier número sin suscripción puede probar el asistente una vez
+  if (gated && !beta && demoOn_(c) && /^(demo|probar|prueba|quiero probar|modo demo)$/.test(norm_(raw))) return startDemo_(from, user, profileName, c);
   if (!user) {
-    if (gated && !beta) { noticeOnce_(from, 'invitar', inviteText_(c), c); return 'sin suscripción'; }
+    if (gated && !beta) { noticeOnce_(from, 'invitar', inviteText_(c, from), c); return 'sin suscripción'; }
     const guess = countryFromPhone_(from);
     user = createUser_(from, profileName, guess);
     send_(from, welcomeText_(profileName, guess, c), c);
@@ -432,7 +439,8 @@ function handleMessage_(m, profileName, c) {
   }
   if (!countUsage_(user, c)) return 'límite diario';
   const access = accessOf_(user, c);
-  const readOnly = access === 'vencida' || access === 'ninguna';
+  const readOnly = access === 'vencida' || access === 'ninguna' || access === 'demo_fin';
+  if (access === 'demo' && Number(user.mensajes_hoy) > Number(c.DEMO_MENSAJES)) { noticeOnce_(from, 'demo_mensajes', demoLimitText_('mensajes', user, c), c); return 'demo: límite de mensajes'; }
 
   if (m.type !== 'text' && m.type !== 'image') {
     send_(from, 'Entiendo mensajes de texto y fotos de recibos. Escríbeme el gasto, por ejemplo: "mercado 85 mil".', c);
@@ -462,7 +470,11 @@ function handleMessage_(m, profileName, c) {
     return 'solo consulta';
   }
 
-  if (m.type === 'image') return handlePhoto_(m, user, country, today, c);
+  const demoFull = access === 'demo' && userMovements_(from).length >= Number(c.DEMO_MOVIMIENTOS);
+  if (m.type === 'image') {
+    if (demoFull) { send_(from, demoLimitText_('movimientos', user, c), c); return 'demo: límite de registros'; }
+    return handlePhoto_(m, user, country, today, c);
+  }
 
   // Resumen semanal: activar o desactivar
   if (/^(resumen no|no (quiero|mas) (el )?resumen(es)?( semanal(es)?)?|cancelar resumen|desactivar resumen|sin resumen)$/.test(t)) {
@@ -527,9 +539,19 @@ function handleMessage_(m, profileName, c) {
     send_(from, parsed.intencion === 'otro' && parsed.respuesta ? parsed.respuesta : 'No encontré un monto en tu mensaje. Escríbelo así: "almuerzo 25 mil" o "me pagaron 1,5 millones". Escribe *ayuda* para ver ejemplos.', c);
     return 'sin monto';
   }
+  if (access === 'demo') {
+    const room = Number(c.DEMO_MOVIMIENTOS) - userMovements_(from).length;
+    if (room <= 0) { send_(from, demoLimitText_('movimientos', user, c), c); return 'demo: límite de registros'; }
+    movs.splice(room);
+  }
   const saved = saveMovements_(from, movs, country, text, m.id, source);
   updateUser_(from, { ultimo_mov_id: saved[saved.length - 1].id, ultimo_mov_ts: new Date().toISOString() });
-  send_(from, confirmText_(saved, country, today) + budgetText_(from, saved, perfil, country, today), c);
+  let tail = '';
+  if (access === 'demo') {
+    const left = Number(c.DEMO_MOVIMIENTOS) - userMovements_(from).length;
+    tail = left > 0 ? '\n\n_Demo: te quedan ' + left + (left === 1 ? ' registro' : ' registros') + '. Escribe *tablero* para ver tu mes en imagen._' : '\n\n' + demoLimitText_('movimientos', user, c);
+  }
+  send_(from, confirmText_(saved, country, today) + budgetText_(from, saved, perfil, country, today) + tail, c);
   return 'registrado ' + saved.length;
 }
 
@@ -606,6 +628,7 @@ function licenseStatus_(key, c) {
  */
 function accessOf_(user, c, force) {
   if (!gated_(c) || isBeta_(user.wa_id, c)) return 'libre';
+  if (!user.licencia && user.acceso === 'demo') return Date.now() < new Date(user.demo_hasta).getTime() ? 'demo' : 'demo_fin';
   if (!user.licencia) return user.acceso === 'vencida' ? 'vencida' : 'ninguna';
   const fresh = user.acceso_revisado && Date.now() - new Date(user.acceso_revisado).getTime() < 12 * 3600e3;
   if (fresh && !force && user.acceso) return user.acceso;
@@ -646,7 +669,7 @@ function activate_(from, key, profileName, c) {
     send_(from, 'Ese código ya está activo en otro número de WhatsApp. Si cambiaste de número, escríbenos' + (c.CONTACTO ? ' a ' + c.CONTACTO : ' respondiendo el correo de bienvenida') + ' y lo pasamos a este.', c);
     return 'activar: en otro número';
   }
-  const patch = { licencia: key, acceso: 'activa', acceso_revisado: new Date().toISOString(), vence: '' };
+  const patch = { licencia: key, acceso: 'activa', acceso_revisado: new Date().toISOString(), vence: '', demo_hasta: '' };
   const user = getUser_(from);
   if (!user) {
     const guess = countryFromPhone_(from);
@@ -656,7 +679,7 @@ function activate_(from, key, profileName, c) {
     return 'activado';
   }
   updateUser_(from, patch);
-  send_(from, '✓ Tu suscripción a ' + c.PREMIUM_NAME + ' quedó activa' + (user.acceso === 'vencida' || user.acceso === 'ninguna' ? ' de nuevo. Tus registros siguen aquí.' : '.') + ' Escríbeme tus gastos cuando quieras.', c);
+  send_(from, '✓ Tu suscripción a ' + c.PREMIUM_NAME + ' quedó activa' + (user.acceso === 'demo' ? '. Lo que anotaste en el demo se queda en tu cuenta.' : user.acceso === 'vencida' || user.acceso === 'ninguna' ? ' de nuevo. Tus registros siguen aquí.' : '.') + ' Escríbeme tus gastos cuando quieras.', c);
   return 'activado';
 }
 
@@ -666,13 +689,59 @@ function welcomeText_(profileName, guess, c) {
     HELP + '\n\nCada lunes te enviaré el resumen de tu semana (escribe *resumen no* si no lo quieres).';
 }
 
-function inviteText_(c) {
+function inviteText_(c, from) {
+  const demo = demoOn_(c) && from && !demoUsed_(from);
   return '¡Hola! Soy el asistente de ' + c.BRAND_NAME + '. Para registrar tus gastos aquí necesitas ' + c.PREMIUM_NAME + ': ' + renewUrl_(c) +
+    (demo ? '\n\n¿Quieres probarme antes? Escribe *demo* y tendrás ' + c.DEMO_HORAS + ' horas para anotar hasta ' + c.DEMO_MOVIMIENTOS + ' gastos y ver tu tablero, sin pagar.' : '') +
     '\n\nSi ya te suscribiste, toca el botón *Activar mi WhatsApp* del correo de bienvenida o escríbeme *activar* seguido de tu código.';
+}
+
+/* ---------- Modo demo: probar el asistente sin suscripción, una vez por número ---------- */
+
+const DEMO_COLS = ['wa_id', 'inicio', 'hasta'];
+const demoSheet_ = () => sheet_('Demos', DEMO_COLS);
+function demoOn_(c) { return String(c.DEMO || 'si').toLowerCase() !== 'no'; }
+function demoUsed_(waId) { return demoSheet_().getDataRange().getValues().slice(1).some(r => String(r[0]).replace(/^'/, '') === String(waId)); }
+
+function startDemo_(from, user, profileName, c) {
+  if (user) {
+    const acc = accessOf_(user, c);
+    if (acc === 'activa' || acc === 'libre') { send_(from, 'Ya tienes ' + c.PREMIUM_NAME + ' activo: escríbeme tus gastos cuando quieras. Escribe *ayuda* para ver ejemplos.', c); return 'demo: ya suscrito'; }
+    if (acc === 'demo') { send_(from, demoWelcomeText_(user, countryById_(user.pais), c), c); return 'demo: en curso'; }
+  }
+  if (user || demoUsed_(from)) {
+    send_(from, 'Ya usaste el demo en este número. Para seguir usando el asistente, suscríbete a ' + c.PREMIUM_NAME + ' (7 días gratis): ' + renewUrl_(c), c);
+    return 'demo: ya usado';
+  }
+  const hasta = new Date(Date.now() + Number(c.DEMO_HORAS) * 3600e3).toISOString();
+  const guess = countryFromPhone_(from);
+  user = createUser_(from, profileName, guess);
+  updateUser_(from, { acceso: 'demo', demo_hasta: hasta, resumen_semanal: 'no' });
+  demoSheet_().appendRow(["'" + from, new Date().toISOString(), hasta]);
+  Object.assign(user, { acceso: 'demo', demo_hasta: hasta });
+  send_(from, demoWelcomeText_(user, guess, c), c);
+  return 'demo: inicio';
+}
+
+function demoWelcomeText_(user, guess, c) {
+  const nombre = String(user.nombre || '').split(' ')[0];
+  return '¡Hola' + (nombre ? ', ' + nombre : '') + '! Bienvenido al *demo* de ' + c.BRAND_NAME + '. Durante ' + c.DEMO_HORAS + ' horas puedes anotar hasta ' + c.DEMO_MOVIMIENTOS + ' gastos o ingresos y ver tu tablero.\n\n' +
+    (guess ? 'Usaré ' + guess.currency + ' (' + guess.name + '); si vives en otro país, escríbeme su nombre.\n\n' : 'Primero escríbeme tu país para usar la moneda correcta.\n\n') +
+    'Prueba así:\n• almuerzo 25 mil\n• taxi 12.000 y café 6.000\n• me pagaron la quincena 2 millones\n• la *foto de un recibo*\n\nLuego escribe *tablero* y te mando tu mes en imagen y PDF.\n\n' +
+    'Al terminar el demo borramos lo que anotes. Si te suscribes antes, se queda en tu cuenta.';
+}
+
+function demoLimitText_(kind, user, c) {
+  return (kind === 'mensajes' ? 'Llegaste al máximo de mensajes del demo por hoy.' : 'Llegaste a los ' + c.DEMO_MOVIMIENTOS + ' registros del demo. Aún puedes escribir *tablero* o *resumen* para ver cómo vas.') +
+    '\n\nPara seguir sin límites, suscríbete a ' + c.PREMIUM_NAME + ' (7 días gratis): ' + renewUrl_(c) + '\nLuego escríbeme *activar* con tu código y lo que anotaste se queda en tu cuenta.';
 }
 
 function readOnlyText_(user, access, c) {
   const link = userLink_(user, c);
+  if (access === 'demo_fin') {
+    return 'Tu demo de ' + c.PREMIUM_NAME + ' terminó. ¡Gracias por probarlo! En unos minutos borraremos lo que anotaste.\n\n' +
+      'Para seguir usando el asistente, suscríbete (7 días gratis): ' + renewUrl_(c) + '\nLuego escríbeme *activar* con tu código.';
+  }
   if (access === 'vencida' && user.vence) {
     return 'Tu suscripción a ' + c.PREMIUM_NAME + ' terminó el ' + dateLong_(String(user.vence).slice(0, 10)) + ', así que ya no puedo anotar movimientos. ' +
       'Tu tablero sigue disponible para consulta hasta el ' + dateLong_(consultaHasta_(user, c)) + ': ' + link + '\nDespués borraremos tus datos.\n\n' +
@@ -896,6 +965,7 @@ function revisarSuscripciones_(c, deadline) {
     if (Date.now() > deadline || isBeta_(u.wa_id, c)) return;
     const access = accessOf_(u, c);
     if (u._revisada) { revisadas++; Utilities.sleep(1100); }
+    if (access === 'demo_fin') { deleteUserData_(u.wa_id); borradas++; console.log('Datos borrados: demo terminado'); return; }
     if (access === 'vencida' && u.vence && consultaHasta_(u, c) < today) {
       deleteUserData_(u.wa_id);
       borradas++;
@@ -1204,7 +1274,7 @@ function drawMovements_(sl, d, country) {
  * ============================================================ */
 
 const USER_COLS = ['wa_id', 'nombre', 'pais', 'moneda', 'token', 'estado', 'creado', 'ultimo_mov_id', 'ultimo_mov_ts', 'mensajes_hoy', 'fecha_conteo',
-  'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy'];
+  'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy', 'demo_hasta'];
 const MOV_COLS = ['id', 'wa_id', 'fecha', 'tipo', 'monto', 'moneda', 'categoria', 'descripcion', 'texto', 'msg_id', 'creado', 'fuente'];
 
 function db_() {
@@ -1241,7 +1311,7 @@ function getUserByToken_(token) {
 
 function createUser_(waId, name, country) {
   const u = { wa_id: String(waId), nombre: String(name || '').slice(0, 60), pais: country ? country.id : '', moneda: country ? country.currency : '', token: newToken_(), estado: 'activo', creado: new Date().toISOString(), ultimo_mov_id: '', ultimo_mov_ts: '', mensajes_hoy: 0, fecha_conteo: '',
-    licencia: '', acceso: '', acceso_revisado: '', vence: '', resumen_semanal: 'si', resumen_enviado: '', ultimo_msg_ts: '', fotos_hoy: '' };
+    licencia: '', acceso: '', acceso_revisado: '', vence: '', resumen_semanal: 'si', resumen_enviado: '', ultimo_msg_ts: '', fotos_hoy: '', demo_hasta: '' };
   usersSheet_().appendRow(USER_COLS.map(k => (['wa_id', 'token'].indexOf(k) > -1 ? "'" + u[k] : u[k])));
   return u;
 }
@@ -1251,7 +1321,7 @@ function updateUser_(waId, patch) {
   const u = getUser_(waId);
   if (!u) return;
   // Los textos que parecen fechas o números se guardan con apóstrofo para que la hoja no los convierta.
-  const asText = ['token', 'fecha_conteo', 'ultimo_mov_id', 'pais', 'moneda', 'estado', 'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy'];
+  const asText = ['token', 'fecha_conteo', 'ultimo_mov_id', 'pais', 'moneda', 'estado', 'licencia', 'acceso', 'acceso_revisado', 'vence', 'resumen_semanal', 'resumen_enviado', 'ultimo_msg_ts', 'fotos_hoy', 'demo_hasta'];
   Object.keys(patch).forEach(k => {
     const j = USER_COLS.indexOf(k);
     if (j > -1) sh.getRange(u._row, j + 1).setValue(asText.indexOf(k) > -1 && patch[k] !== '' ? "'" + patch[k] : patch[k]);
@@ -1263,6 +1333,7 @@ function countUsage_(user, c) {
   const today = Utilities.formatDate(new Date(), 'UTC', 'yyyy-MM-dd');
   const n = user.fecha_conteo === today ? Number(user.mensajes_hoy) + 1 : 1;
   updateUser_(user.wa_id, { mensajes_hoy: n, fecha_conteo: today, ultimo_msg_ts: new Date().toISOString() });
+  user.mensajes_hoy = n;
   if (n > Number(c.MAX_MENSAJES_DIA)) {
     if (n === Number(c.MAX_MENSAJES_DIA) + 1) send_(user.wa_id, 'Llegaste al máximo de mensajes de hoy. Mañana seguimos.', c);
     return false;
@@ -1367,7 +1438,7 @@ function savePerfilFromWeb_(token, perfil) {
   const user = getUserByToken_(token);
   if (!user) return { ok: false, error: 'Este enlace no es válido o fue cambiado.' };
   const acc = accessOf_(user, cfg_());
-  if (acc === 'vencida' || acc === 'ninguna') return { ok: false, error: 'Tu tablero está en modo consulta: renueva tu suscripción para guardar cambios.' };
+  if (acc === 'vencida' || acc === 'ninguna' || acc === 'demo_fin') return { ok: false, error: 'Tu tablero está en modo consulta: renueva tu suscripción para guardar cambios.' };
   const clean = cleanPerfil_(perfil);
   clean.aprendidas = getPerfil_(user.wa_id).aprendidas || {};
   savePerfil_(user.wa_id, clean);
@@ -1390,7 +1461,8 @@ function deleteUserData_(waId) {
 /** Estado de la suscripción para el tablero: activa/libre o consulta (vencida/ninguna) con sus fechas. */
 function accessPayload_(user, c) {
   const estado = accessOf_(user, c);
-  return { estado: estado, vence: estado === 'vencida' ? String(user.vence || '').slice(0, 10) : '', hasta: estado === 'vencida' ? consultaHasta_(user, c) : '', renovar: renewUrl_(c) };
+  return { estado: estado, vence: estado === 'vencida' ? String(user.vence || '').slice(0, 10) : '', hasta: estado === 'vencida' ? consultaHasta_(user, c) : estado === 'demo' || estado === 'demo_fin' ? String(user.demo_hasta || '') : '', renovar: renewUrl_(c),
+    limite: estado === 'demo' ? Number(c.DEMO_MOVIMIENTOS) : 0 };
 }
 
 /** Lo que ve el sitio en el tablero. */

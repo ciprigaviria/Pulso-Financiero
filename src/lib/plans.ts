@@ -33,3 +33,6 @@ export const PREMIUM_FEATURES = [
   { title: "Recomendaciones de inversión", text: "Dónde ubicar tu excedente según tu plazo, y un comparador de tasas reales de tu país con su fuente." },
   { title: "Plan de desendeudamiento", text: "Qué deuda pagar primero, en cuántos meses sales y cuánto te ahorras en intereses." },
 ]
+
+/** Enlace al modo demo del asistente: abre WhatsApp con la palabra "demo" lista para enviar. */
+export const demoUrl = config.botWhatsapp ? `https://wa.me/${config.botWhatsapp}?text=demo` : ""

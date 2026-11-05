@@ -5,10 +5,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react"
-import { ArrowRight, Car, Coffee, CreditCard, Home, Lightbulb, Lock, PiggyBank, Plane, Receipt, ShoppingCart, Smartphone, Target, TrendingUp, Utensils, type LucideIcon } from "lucide-react"
+import { ArrowRight, Car, MessageCircle, Coffee, CreditCard, Home, Lightbulb, Lock, PiggyBank, Plane, Receipt, ShoppingCart, Smartphone, Target, TrendingUp, Utensils, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChatDemo } from "@/components/home/chat-demo"
-import { annualPerMonth, fmtUsd, trialText } from "@/lib/plans"
+import { annualPerMonth, demoUrl, fmtUsd, trialText } from "@/lib/plans"
 import { config } from "@/config"
 
 type Tile = { icon: LucideIcon; x: number; y: number; label?: string; tint: string }
@@ -87,9 +87,11 @@ export function Hero() {
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <Button asChild size="lg" variant="white" className="rounded-lg"><Link href="/prueba-personal">Hacer mi diagnóstico gratis <ArrowRight /></Link></Button>
-          <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/#precios">Ver planes</Link></Button>
+          {demoUrl
+            ? <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><a href={demoUrl} target="_blank" rel="noopener noreferrer"><MessageCircle /> Probar el asistente gratis</a></Button>
+            : <Button asChild size="lg" variant="ghost-dark" className="rounded-lg"><Link href="/#precios">Ver planes</Link></Button>}
         </div>
-        <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Diagnóstico gratis y sin registro · {config.premiumName} desde {fmtUsd(annualPerMonth)} al mes{trialText ? ` · ${trialText}` : ""}</p>
+        <p className="mt-5 text-xs text-white/50"><Lock className="mr-1.5 inline size-3.5 align-[-2px]" />Diagnóstico gratis y sin registro{demoUrl ? " · Demo del asistente sin pagar" : ""} · {config.premiumName} desde {fmtUsd(annualPerMonth)} al mes{trialText ? ` · ${trialText}` : ""}</p>
       </motion.div>
 
       <div className="relative mx-auto max-w-6xl px-5 pb-20 pt-6">

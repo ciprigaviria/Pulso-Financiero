@@ -674,3 +674,55 @@ const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets,
   assert.equal(d.ultimos[0].fecha, '2026-11-04'); assert.equal(d.ultimos[0].descripcion, 'g27', 'el más reciente primero');
   console.log('✓ Tablero en WhatsApp: imagen y PDF del mes, mismo estilo del sitio, enlace en el mensaje, archivo temporal borrado, límite diario y respaldo con enlace');
 }
+
+// ---- 15. Modo demo: probar el asistente sin suscripción, una vez por número ----
+{
+  const { say, sheets, bot, env } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec' });
+  const D = '573005556677';
+  let x = say(D, 'hola');
+  assert.ok(x.replies[0].includes('Escribe *demo*') && x.replies[0].includes('24 horas') && x.replies[0].includes('10 gastos'), x.replies[0]);
+  x = say(D, 'Demo');
+  assert.ok(x.replies[0].includes('Bienvenido al *demo*') && x.replies[0].includes('COP (Colombia)'), x.replies[0]);
+  assert.equal(sheets.Demos.length, 2); assert.equal(getU(sheets, D, 'acceso'), 'demo'); assert.equal(getU(sheets, D, 'resumen_semanal'), 'no');
+  x = say(D, 'almuerzo 25 mil');
+  assert.ok(x.replies[0].includes('$ 25.000') && x.replies[0].includes('te quedan 9 registros'), x.replies[0]);
+  for (let i = 0; i < 8; i++) sheets.Movimientos.push(['d' + i, D, '2026-11-04', 'gasto', 1000, 'COP', 'otros', '', '', 'xd' + i, '', 'prueba']);
+  x = say(D, 'taxi 10 mil y café 5 mil');
+  assert.equal(sheets.Movimientos.filter((r: any[]) => String(r[1]) === D).length, 10, 'solo cabe uno más');
+  assert.ok(x.replies[0].includes('Llegaste a los 10 registros del demo') && x.replies[0].includes('https://pulso.test/#precios'), x.replies[0]);
+  x = say(D, 'cine 20 mil');
+  assert.ok(x.replies[0].startsWith('Llegaste a los 10 registros')); assert.equal(sheets.Movimientos.filter((r: any[]) => String(r[1]) === D).length, 10);
+  x = say(D, 'resumen'); assert.ok(x.replies[0].includes('Gastos: $ 43.000'), x.replies[0]);
+  x = say(D, 'tablero'); assert.ok(x.replies[0].includes('https://pulso.test/tablero/?t='));
+  const g = bot.doGet({ parameter: { action: 'tablero', t: getU(sheets, D, 'token') } });
+  assert.equal(g.acceso.estado, 'demo'); assert.equal(g.acceso.limite, 10); assert.ok(g.acceso.hasta > new Date().toISOString());
+  x = say(D, 'demo'); assert.ok(x.replies[0].includes('Bienvenido al *demo*'), 'repite instrucciones durante el demo');
+  // Fin del demo: solo consulta y luego se borra; no se puede repetir
+  setU(sheets, D, 'demo_hasta', new Date(Date.now() - 60000).toISOString());
+  x = say(D, 'almuerzo 10 mil'); assert.ok(x.replies[0].includes('Tu demo de Pulso Premium terminó'), x.replies[0]);
+  const w = bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t: getU(sheets, D, 'token'), perfil: { presupuestos: { comida: 1 } } }) } });
+  assert.equal(w.ok, false, 'después del demo no guarda cambios');
+  bot.tareasProgramadas();
+  assert.equal(userRow(sheets, D), undefined); assert.equal(sheets.Movimientos.filter((r: any[]) => String(r[1]) === D).length, 0, 'datos del demo borrados');
+  assert.equal(sheets.Demos.length, 2, 'queda el registro de que ya usó el demo');
+  x = say(D, 'demo'); assert.ok(x.replies[0].includes('Ya usaste el demo'), x.replies[0]);
+
+  // Si se suscribe durante el demo, lo anotado se queda
+  const E2 = '573008889900', KEY = 'DEMO1234-ABCD';
+  env.pagos = (k: string) => (k === KEY ? { ok: true, estado: 'activa' } : { ok: false, estado: 'invalida' });
+  say(E2, 'demo'); say(E2, 'mercado 80 mil');
+  x = say(E2, 'activar ' + KEY);
+  assert.ok(x.replies[0].includes('quedó activa') && x.replies[0].includes('se queda en tu cuenta'), x.replies[0]);
+  assert.equal(getU(sheets, E2, 'acceso'), 'activa'); assert.equal(getU(sheets, E2, 'demo_hasta'), '');
+  x = say(E2, 'cine 20 mil'); assert.ok(!x.replies[0].includes('Demo:'), x.replies[0]);
+  assert.equal(sheets.Movimientos.filter((r: any[]) => String(r[1]) === E2).length, 2);
+  x = say(E2, 'demo'); assert.ok(x.replies[0].includes('Ya tienes Pulso Premium activo'));
+
+  // Límite de mensajes del demo y demo apagado
+  const { say: s2 } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec', DEMO_MENSAJES: '2' });
+  s2(D, 'demo'); s2(D, 'taxi 5 mil'); x = s2(D, 'taxi 6 mil'); assert.ok(x.replies[0].includes('$ 6.000'));
+  x = s2(D, 'taxi 7 mil'); assert.ok(x.replies[0].startsWith('Llegaste al máximo de mensajes del demo'), x.replies[0]);
+  const { say: s3, sheets: sh3 } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec', DEMO: 'no' });
+  x = s3(D, 'demo'); assert.ok(x.replies[0].includes('necesitas Pulso Premium') && !x.replies[0].includes('*demo*'), x.replies[0]); assert.equal(userRow(sh3, D), undefined);
+  console.log('✓ Modo demo: una vez por número, 24 horas, 10 registros, tablero, límite de mensajes, borrado al terminar y conversión al suscribirse');
+}

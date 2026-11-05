@@ -84,7 +84,8 @@ function demoPerfil(k: number): Perfil {
 }
 
 /** Estado de la suscripción que envía el bot: activa/libre, o consulta (vencida/ninguna) con sus fechas. */
-type Acceso = { estado: "activa" | "libre" | "vencida" | "ninguna"; vence: string; hasta: string; renovar: string }
+type Acceso = { estado: "activa" | "libre" | "vencida" | "ninguna" | "demo" | "demo_fin"; vence: string; hasta: string; renovar: string; limite?: number }
+const longDateTime = (iso: string) => { const d = new Date(iso); return isNaN(d.getTime()) ? "" : `${d.getDate()} de ${MONTHS[d.getMonth()]} a las ${d.toLocaleTimeString("es", { hour: "numeric", minute: "2-digit" })}` }
 const longDate = (iso: string) => (iso ? `${Number(iso.slice(8, 10))} de ${MONTHS[Number(iso.slice(5, 7)) - 1]} de ${iso.slice(0, 4)}` : "")
 
 type Loaded = { mode: "loading" } | { mode: "error"; message: string } | { mode: "ready"; demo: boolean; data: Payload; token: string | null }
@@ -141,7 +142,8 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
   const [dirty, setDirty] = React.useState(false)
   const [saveMsg, setSaveMsg] = React.useState<string | null>(null)
   const update = (p: Perfil) => { setPerfil(p); setDirty(true); setSaveMsg(null) }
-  const consulta = !demo && (data.acceso?.estado === "vencida" || data.acceso?.estado === "ninguna")
+  const consulta = !demo && (data.acceso?.estado === "vencida" || data.acceso?.estado === "ninguna" || data.acceso?.estado === "demo_fin")
+  const enDemo = !demo && data.acceso?.estado === "demo"
   const save = async () => {
     if (consulta) { setSaveMsg("Tu tablero está en modo consulta: renueva tu suscripción para guardar cambios."); return }
     if (demo || !token) { setDirty(false); setSaveMsg("En el ejemplo los cambios no se guardan."); return }
@@ -179,11 +181,21 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
         <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rojo/30 bg-rojo/[0.06] px-4 py-3 text-sm">
           <p className="min-w-0 flex-1">
             <b>Tu tablero está en modo consulta.</b>{" "}
-            {data.acceso.estado === "vencida" && data.acceso.vence
+            {data.acceso.estado === "demo_fin"
+              ? <>Tu demo terminó y en unos minutos borraremos lo que anotaste. Para seguir, suscríbete y escríbele al asistente <b>activar</b> con tu código.</>
+              : data.acceso.estado === "vencida" && data.acceso.vence
               ? <>Tu suscripción terminó el {longDate(data.acceso.vence)}. Puedes ver tus datos hasta el {longDate(data.acceso.hasta)}; después los borraremos. Para seguir registrando, renueva y escríbele al asistente <b>activar</b> con tu nuevo código.</>
               : <>Para registrar movimientos y guardar cambios necesitas una suscripción activa.</>}
           </p>
-          <Button asChild size="sm"><a href={data.acceso.renovar || "/#precios"}>Renovar</a></Button>
+          <Button asChild size="sm"><a href={data.acceso.renovar || "/#precios"}>{data.acceso.estado === "demo_fin" ? "Suscribirme" : "Renovar"}</a></Button>
+        </div>
+      )}
+      {enDemo && data.acceso && (
+        <div role="status" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/40 bg-primary/[0.07] px-4 py-3 text-sm">
+          <p className="min-w-0 flex-1">
+            <b>Estás usando el demo.</b> Puedes anotar hasta {data.acceso.limite || 10} movimientos{data.acceso.hasta ? <> hasta el {longDateTime(data.acceso.hasta)}</> : null}. Si te suscribes antes, lo que anotaste se queda en tu cuenta.
+          </p>
+          <Button asChild size="sm"><a href={data.acceso.renovar || "/#precios"}>Suscribirme</a></Button>
         </div>
       )}
       {demo && <div className="mb-5 rounded-2xl border border-amarillo/40 bg-amarillo/10 px-4 py-3 text-sm"><b>Ejemplo ilustrativo con datos ficticios.</b> Puedes tocar todo; los cambios no se guardan.</div>}
