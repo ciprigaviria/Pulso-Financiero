@@ -726,3 +726,77 @@ const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets,
   x = s3(D, 'demo'); assert.ok(x.replies[0].includes('necesitas Pulso Premium') && !x.replies[0].includes('*demo*'), x.replies[0]); assert.equal(userRow(sh3, D), undefined);
   console.log('✓ Modo demo: una vez por número, 24 horas, 10 registros, tablero, límite de mensajes, borrado al terminar y conversión al suscribirse');
 }
+
+// ---- 16. Borrar: lista numerada, por número, rangos, últimos N, por día, buscando y con confirmación ----
+{
+  const { say, sheets, bot, env } = makeEnv();
+  const B = '573007007007';
+  say(B, 'hola');
+  const add = (id: string, fecha: string, tipo: string, monto: number, categoria: string, desc: string) => sheets.Movimientos.push([id, B, fecha, tipo, monto, 'COP', categoria, desc, '', 'x' + id, '', 'prueba']);
+  add('a1', '2026-11-01', 'ingreso', 2000000, 'salario', 'Quincena');
+  add('a2', '2026-11-02', 'gasto', 320000, 'mercado', 'Mercado del mes');
+  add('a3', '2026-11-03', 'gasto', 12000, 'transporte', 'Taxi');
+  add('a4', '2026-11-03', 'gasto', 25000, 'comida', 'Almuerzo');
+  add('a5', '2026-11-04', 'gasto', 15000, 'transporte', 'Taxi');
+  add('a6', '2026-11-04', 'gasto', 6000, 'comida', 'Café');
+  const ids = () => sheets.Movimientos.filter((r: any[]) => String(r[1]) === B).map((r: any[]) => r[0]);
+
+  let x = say(B, 'movimientos');
+  assert.ok(x.replies[0].startsWith('*Tus últimos movimientos*') && x.replies[0].includes('1. 4 nov · Café · $ 6.000') && x.replies[0].includes('6. 1 nov · Quincena · +$ 2.000.000'), x.replies[0]);
+  x = say(B, 'borrar 2'); assert.ok(x.replies[0].startsWith('Eliminado: 4 nov · Taxi · $ 15.000'), x.replies[0]);
+  assert.deepEqual(ids(), ['a1', 'a2', 'a3', 'a4', 'a6']);
+  // Los números siguen siendo los de la lista que la persona tiene en pantalla
+  x = say(B, 'Borrar 1 y 4'); assert.ok(x.replies[0].startsWith('Eliminé 2 movimientos') && x.replies[0].includes('Café') && x.replies[0].includes('Taxi'), x.replies[0]);
+  assert.deepEqual(ids(), ['a1', 'a2', 'a4']);
+  x = say(B, 'borrar 2'); assert.ok(x.replies[0].includes('No encontré el número 2'), x.replies[0]);
+
+  // Rango con guion y confirmación cuando son más de 3
+  ['b1', 'b2', 'b3', 'b4', 'b5'].forEach((id, i) => add(id, '2026-11-04', 'gasto', 1000 * (i + 1), 'otros', 'Varios ' + (i + 1)));
+  say(B, 'lista');
+  x = say(B, 'borrar 1-4');
+  assert.ok(x.replies[0].startsWith('Voy a borrar estos 4 movimientos') && x.replies[0].includes('Responde *sí*'), x.replies[0]);
+  assert.equal(ids().length, 8, 'aún no borra');
+  x = say(B, 'Sí, bórralos'); assert.ok(x.replies[0].startsWith('Eliminé 4 movimientos'), x.replies[0]);
+  assert.deepEqual(ids(), ['a1', 'a2', 'a4', 'b1']);
+
+  // Últimos N con confirmación; "no" cancela
+  x = say(B, 'borrar los últimos 2'); assert.ok(x.replies[0].includes('Voy a borrar estos 2') && x.replies[0].includes('Varios 1') && x.replies[0].includes('Almuerzo'), x.replies[0]);
+  x = say(B, 'no'); assert.equal(x.replies[0], 'Listo, no borré nada.'); assert.equal(ids().length, 4);
+  // Un mensaje distinto cancela lo pendiente y se atiende normal
+  say(B, 'borrar ultimos 2'); x = say(B, 'resumen'); assert.ok(x.replies[0].includes('*Tu mes hasta hoy*')); x = say(B, 'si'); assert.equal(ids().length, 4, '"sí" tarde no borra');
+
+  // Buscando: por palabra, monto y día
+  add('c1', '2026-11-03', 'gasto', 12000, 'transporte', 'Taxi');
+  add('c2', '2026-11-04', 'gasto', 9000, 'transporte', 'Bus');
+  x = say(B, 'borra el almuerzo'); assert.ok(x.replies[0].startsWith('Eliminado: 3 nov · Almuerzo · $ 25.000'), x.replies[0]);
+  x = say(B, 'elimina el taxi de ayer'); assert.ok(x.replies[0].startsWith('Eliminado: 3 nov · Taxi · $ 12.000'), x.replies[0]);
+  x = say(B, 'quitar transporte'); assert.ok(x.replies[0].startsWith('Eliminado: 4 nov · Bus'), x.replies[0]);
+  x = say(B, 'borrar 320 mil'); assert.ok(x.replies[0].startsWith('Eliminado: 2 nov · Mercado del mes'), x.replies[0]);
+  x = say(B, 'borrar cine'); assert.ok(x.replies[0].includes('No encontré movimientos con "cine"'), x.replies[0]);
+  add('d1', '2026-11-04', 'gasto', 5000, 'comida', 'Empanada'); add('d2', '2026-11-04', 'gasto', 7000, 'comida', 'Empanada y gaseosa');
+  x = say(B, 'borrar empanada'); assert.ok(x.replies[0].startsWith('Encontré 2 movimientos con eso') && x.replies[0].includes('1. 4 nov · Empanada y gaseosa'), x.replies[0]);
+  x = say(B, 'borrar 1'); assert.ok(x.replies[0].startsWith('Eliminado: 4 nov · Empanada y gaseosa'), x.replies[0]);
+  x = say(B, 'borrar los de hoy'); assert.ok(x.replies[0].startsWith('Voy a borrar estos 2 movimientos') && x.replies[0].includes('Varios 1') && x.replies[0].includes('Empanada'), x.replies[0]);
+  x = say(B, 'dale'); assert.ok(x.replies[0].startsWith('Eliminé 2')); assert.deepEqual(ids(), ['a1']);
+
+  // Lo último, "todo" (solo explica) y número sin lista previa
+  x = say(B, 'borrar todo'); assert.ok(x.replies[0].includes('*borrar mis datos*')); assert.deepEqual(ids(), ['a1']);
+  x = say(B, 'borrar'); assert.ok(x.replies[0].startsWith('Eliminado: Salario') && x.replies[0].includes('*movimientos*'), x.replies[0]);
+  const { say: s2, sheets: sh2 } = makeEnv();
+  s2(B, 'hola'); sh2.Movimientos.push(['z1', B, '2026-11-04', 'gasto', 1000, 'COP', 'otros', 'Algo', '', 'xz1', '', 'prueba']);
+  x = s2(B, 'borrar 1'); assert.ok(x.replies[0].startsWith('Estos son tus últimos movimientos') && x.replies[0].includes('1. 4 nov · Algo'), x.replies[0]);
+  assert.equal(sh2.Movimientos.length, 2, 'sin lista previa no borra por número');
+  x = s2(B, 'borrar 1'); assert.ok(x.replies[0].startsWith('Eliminado: 4 nov · Algo'));
+  // Más de 10: "más" muestra los anteriores
+  for (let i = 0; i < 13; i++) sh2.Movimientos.push(['y' + i, B, '2026-11-04', 'gasto', 100 + i, 'COP', 'otros', 'Cosa ' + i, '', 'xy' + i, '', 'prueba']);
+  x = s2(B, 'movimientos'); assert.ok(x.replies[0].includes('10. ') && !x.replies[0].includes('11. ') && x.replies[0].includes('*más*'));
+  x = s2(B, 'más'); assert.ok(x.replies[0].startsWith('11. 4 nov · Cosa 2') && x.replies[0].includes('13. 4 nov · Cosa 0'), x.replies[0]);
+  x = s2(B, 'borrar 12'); assert.ok(x.replies[0].startsWith('Eliminado: 4 nov · Cosa 1'), x.replies[0]);
+
+  // Con IA: frases libres llegan a lo mismo
+  const { say: s4, sheets: sh4, env: env4 } = makeEnv({ ANTHROPIC_API_KEY: 'sk-test' });
+  s4(B, 'hola'); ['q1', 'q2', 'q3'].forEach((id) => sh4.Movimientos.push([id, B, '2026-11-04', 'gasto', 1000, 'COP', 'otros', 'Cosa ' + id, '', 'x' + id, '', 'prueba']));
+  env4.llm = () => ({ intencion: 'borrar', borrar_detalle: 'ultimos 2' });
+  x = s4(B, 'me equivoqué en los dos últimos, quítalos porfa'); assert.ok(x.replies[0].startsWith('Voy a borrar estos 2'), x.replies[0]);
+  console.log('✓ Borrar: lista numerada, por número, varios, rangos, últimos N, por día, buscando por palabra o monto, confirmación y con IA');
+}

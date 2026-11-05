@@ -232,7 +232,7 @@ function llmTool_() {
     input_schema: {
       type: 'object',
       properties: {
-        intencion: { type: 'string', enum: ['movimientos', 'resumen', 'consulta', 'borrar_ultimo', 'ayuda', 'otro'] },
+        intencion: { type: 'string', enum: ['movimientos', 'resumen', 'consulta', 'borrar', 'ayuda', 'otro'] },
         movimientos: {
           type: 'array',
           items: {
@@ -248,6 +248,7 @@ function llmTool_() {
           }
         },
         categoria_consulta: { type: 'string', description: 'Para intencion=consulta: id de la categoría preguntada, o vacío para el total.' },
+        borrar_detalle: { type: 'string', description: 'Solo para intencion=borrar: qué quiere borrar en pocas palabras ("" si es lo último; "ultimos 3"; "taxi ayer"; "2 a 5"; "los de hoy").' },
         respuesta: { type: 'string', description: 'Solo para intencion=otro: respuesta breve y amable en español (máximo 2 frases).' }
       },
       required: ['intencion']
@@ -267,7 +268,7 @@ function llmSystem_(today, country) {
     '- Pagos de tarjeta de crédito, cuotas o abonos a préstamos van en la categoría "deudas".',
     '- Categorías: ' + CATEGORIES.map(c => c.id + ' (' + c.tipo + ': ' + c.name + ')').join('; ') + '.',
     '- Si el mensaje pide un resumen o "cómo voy", intencion=resumen. Si pregunta cuánto lleva en algo, intencion=consulta.',
-    '- Si quiere deshacer o borrar lo último, intencion=borrar_ultimo. Si saluda o pide ayuda, intencion=ayuda.',
+    '- Si quiere borrar, eliminar, quitar o deshacer algo, intencion=borrar y en borrar_detalle lo que quiere borrar. Si saluda o pide ayuda, intencion=ayuda.',
     '- Si menciona un gasto sin monto, intencion=otro y en "respuesta" pide el monto.'
   ].join('\n');
 }
@@ -405,6 +406,8 @@ const HELP = [
   '• *resumen* — cómo vas este mes',
   '• *cuánto llevo en restaurantes*',
   '• *borrar* — elimina lo último que anotaste',
+  '• *movimientos* — tu lista numerada para borrar el que quieras: *borrar 2*, *borrar 1, 3*, *borrar 2 a 5*',
+  '• *borrar últimos 3*, *borrar los de hoy* o *borrar taxi de ayer*',
   '• *tablero* — tu mes en imagen y PDF, con tu enlace personal',
   '• También puedes mandarme la *foto de un recibo*',
   '• *resumen no* — dejar de recibir el resumen de los lunes',
@@ -470,6 +473,14 @@ function handleMessage_(m, profileName, c) {
     return 'solo consulta';
   }
 
+  // Borrar: confirmación pendiente, lista numerada, por número, últimos N, por día o buscando
+  if (m.type === 'text') {
+    const tDel = norm_(text.replace(/(\d)\s*[-–]\s*(\d)/g, '$1 a $2'));
+    const pend = pendingDelete_(tDel, from, user, country, c);
+    if (pend) return pend;
+    const del = deleteCommand_(tDel, from, user, country, today, c);
+    if (del) return del;
+  }
   const demoFull = access === 'demo' && userMovements_(from).length >= Number(c.DEMO_MOVIMIENTOS);
   if (m.type === 'image') {
     if (demoFull) { send_(from, demoLimitText_('movimientos', user, c), c); return 'demo: límite de registros'; }
@@ -502,7 +513,6 @@ function handleMessage_(m, profileName, c) {
     const token = newToken_(); updateUser_(from, { token: token }); user.token = token;
     send_(from, 'Listo, tu enlace anterior dejó de funcionar. El nuevo es:\n' + userLink_(user, c), c); return 'nuevo enlace';
   }
-  if (/^(borrar|deshacer|eliminar|borrar ultimo|borra eso|elimina eso|eliminar ultimo)$/.test(t)) { send_(from, undoLast_(from, country), c); return 'borrar'; }
 
   // Corrección de categoría del último movimiento ("transporte", "era mercado")
   const asCat = text.length <= 30 && !parseAmounts_(text).length ? categoryFromText_(text) : null;
@@ -526,7 +536,10 @@ function handleMessage_(m, profileName, c) {
 
   if (parsed.intencion === 'resumen') { send_(from, summaryText_(from, country, today, c), c); return 'resumen'; }
   if (parsed.intencion === 'ayuda') { send_(from, HELP, c); return 'ayuda'; }
-  if (parsed.intencion === 'borrar_ultimo') { send_(from, undoLast_(from, country), c); return 'borrar'; }
+  if (parsed.intencion === 'borrar' || parsed.intencion === 'borrar_ultimo') {
+    const det = norm_(String(parsed.borrar_detalle || '').replace(/(\d)\s*[-–]\s*(\d)/g, '$1 a $2'));
+    return deleteCommand_('borrar' + (det ? ' ' + det : ''), from, user, country, today, c);
+  }
   if (parsed.intencion === 'consulta') {
     const cat = categoryById_(parsed.categoria_consulta);
     send_(from, cat ? categoryText_(from, cat, country, today) : summaryText_(from, country, today, c), c);
@@ -1371,7 +1384,162 @@ function undoLast_(waId, country) {
   const last = movs[movs.length - 1];
   movSheet_().deleteRow(last._row);
   updateUser_(waId, { ultimo_mov_id: '', ultimo_mov_ts: '' });
-  return 'Eliminado: ' + categoryById_(last.categoria).name + ' · ' + fmtMoney_(last.monto, country) + '.';
+  return 'Eliminado: ' + categoryById_(last.categoria).name + ' · ' + fmtMoney_(last.monto, country) + '.\n¿Era otro? Escribe *movimientos* para elegir cuál borrar.';
+}
+
+/* ---------- Borrar movimientos: el último, por número de la lista, los últimos N, los de un día o buscando ---------- */
+
+const LIST_SIZE = 10, MAX_BORRAR_SIN_CONFIRMAR = 3;
+const DEL_VERB = /^(borrar|borra|borrame|borralo|borrala|eliminar|elimina|eliminame|eliminalo|quitar|quita|quitame|quitalo|anular|anula|deshacer|deshaz)\b ?/;
+const DEL_FILLER = ['el', 'la', 'los', 'las', 'lo', 'mi', 'mis', 'un', 'una', 'de', 'del', 'que', 'puse', 'anote', 'registre', 'escribi', 'movimiento', 'movimientos',
+  'registro', 'registros', 'transaccion', 'transacciones', 'gasto', 'gastos', 'ingreso', 'ingresos', 'todo', 'todos', 'todas', 'por', 'favor', 'porfa', 'en', 'con', 'numero', 'numeros'];
+const YES = /^(si|si borrar|si borralos|confirmo|confirmar|dale|ok|okay|de una|hazlo|borralos|si por favor)$/;
+const NO = /^(no|cancelar|cancela|mejor no|no borrar|no gracias)$/;
+
+/** Más reciente primero, según el orden en que se registraron. */
+function recentMovs_(waId) { return userMovements_(waId).reverse(); }
+
+function movLine_(m, country) {
+  return shortDate_(m.fecha) + ' · ' + (m.descripcion || categoryById_(m.categoria).name) + ' · ' + (m.tipo === 'ingreso' ? '+' : '') + fmtMoney_(m.monto, country);
+}
+
+const DEL_HINT = 'Para borrar escribe el número: *borrar 2*, varios: *borrar 1, 3* o un rango: *borrar 2 a 5*.';
+
+/** Muestra una lista numerada y guarda qué movimiento es cada número (1 hora). */
+function showList_(from, movs, start, country, title) {
+  const cache = CacheService.getScriptCache();
+  if (start === 0) cache.put('lista_' + from, JSON.stringify(movs.slice(0, 200).map(m => m.id)), 3600);
+  cache.put('lista_pag_' + from, String(start + LIST_SIZE), 3600);
+  const page = movs.slice(start, start + LIST_SIZE);
+  if (!page.length) return start ? 'No hay más movimientos en la lista.' : 'No tienes movimientos registrados.';
+  return title + '\n' + page.map((m, i) => (start + i + 1) + '. ' + movLine_(m, country)).join('\n') + '\n\n' + DEL_HINT +
+    (movs.length > start + LIST_SIZE ? '\nPara ver los anteriores: *más*' : '');
+}
+
+/** "1, 3 y 5", "2 a 5", "del 2 al 4" → [1,3,5] / [2,3,4,5]. Devuelve null si no es una lista de números de la lista. */
+function parsePositions_(r) {
+  const s = r.replace(/^(el|la|los|las|numero|numeros|del|#)\s+/g, '').replace(/^(el|la|los|las|numero|numeros|del)\s+/, '').trim();
+  if (!/^\d{1,3}((\s*,\s*|\s+y\s+|\s+a\s+|\s+al\s+|\s+hasta\s+|\s+)\d{1,3})*$/.test(s)) return null;
+  const out = [];
+  s.split(/\s*,\s*|\s+y\s+/).forEach(part => {
+    const range = part.match(/^(\d{1,3})\s+(?:a|al|hasta)\s+(\d{1,3})$/);
+    if (range) {
+      const a = Math.min(+range[1], +range[2]), b = Math.max(+range[1], +range[2]);
+      for (let k = a; k <= b && k - a < 100; k++) out.push(k);
+    } else part.split(/\s+/).forEach(n => out.push(+n));
+  });
+  return out.every(n => n >= 1 && n <= 200) ? out.filter((n, i) => out.indexOf(n) === i) : null;
+}
+
+function dayFromWord_(w, today) { return w === 'hoy' ? today : w === 'ayer' ? addDays_(today, -1) : w === 'antier' || w === 'anteayer' ? addDays_(today, -2) : ''; }
+
+/**
+ * Atiende "movimientos", "más" y todo lo que empieza con borrar/eliminar/quitar/deshacer.
+ * Devuelve la etiqueta de la acción, o null si el mensaje no es de esto.
+ */
+function deleteCommand_(t, from, user, country, today, c) {
+  const cache = CacheService.getScriptCache();
+  if (/^(movimientos|mis movimientos|ver movimientos|ver mis movimientos|lista|mi lista|ultimos movimientos|historial|mis registros|registros|transacciones|mis transacciones)$/.test(t)) {
+    send_(from, showList_(from, recentMovs_(from), 0, country, '*Tus últimos movimientos* (el 1 es el más reciente)'), c); return 'lista';
+  }
+  if (/^(mas|ver mas|siguientes|anteriores)$/.test(t) && cache.get('lista_' + from)) {
+    const ids = JSON.parse(cache.get('lista_' + from)), byId = {};
+    userMovements_(from).forEach(m => { byId[m.id] = m; });
+    const start = Number(cache.get('lista_pag_' + from) || LIST_SIZE);
+    const page = ids.slice(start, start + LIST_SIZE);
+    if (!page.length) { send_(from, 'No hay más movimientos en la lista.', c); return 'lista: fin'; }
+    cache.put('lista_pag_' + from, String(start + LIST_SIZE), 3600);
+    send_(from, page.map((id, i) => (start + i + 1) + '. ' + (byId[id] ? movLine_(byId[id], country) : '(ya borrado)')).join('\n') + '\n\n' + DEL_HINT +
+      (ids.length > start + LIST_SIZE ? '\nPara ver los anteriores: *más*' : ''), c);
+    return 'lista: más';
+  }
+  const v = t.match(DEL_VERB);
+  if (!v) return null;
+  const r = t.slice(v[0].length).replace(/[.!?]+$/, '').trim();
+
+  // Lo último
+  if (/^(eso|esto|ese|esa|lo ultimo|el ultimo|la ultima|ultimo|ultima|lo anterior|el anterior|ultimo movimiento|el ultimo movimiento|ultimo registro|el ultimo registro|lo que acabo de (anotar|escribir|poner))?$/.test(r)) {
+    send_(from, undoLast_(from, country), c); return 'borrar';
+  }
+  // Todo: se explica cómo, sin borrar nada
+  if (/^(todo|todos|toda|todo eso)( (mis|los) (movimientos|registros|gastos|transacciones))?$/.test(r)) {
+    send_(from, 'Para borrar todo (movimientos y enlace) escribe *borrar mis datos*. Si solo quieres quitar algunos, escribe *movimientos* para ver tu lista, o *borrar últimos 5*, *borrar los de hoy*.', c);
+    return 'borrar: todo (aclaración)';
+  }
+  // Los últimos N
+  const lastN = r.match(/^(?:los |las )?(?:(?:ultimos|ultimas) (\d{1,2})|(\d{1,2}) (?:ultimos|ultimas))(?: (?:movimientos|registros|gastos|transacciones))?$/);
+  if (lastN) {
+    const n = Math.min(Number(lastN[1] || lastN[2]), 50);
+    const movs = recentMovs_(from).slice(0, n);
+    if (!movs.length) { send_(from, 'No tienes movimientos para borrar.', c); return 'borrar: nada'; }
+    return deleteOrConfirm_(from, user, movs, country, c, movs.length > 1);
+  }
+  // Por número de la lista
+  const pos = parsePositions_(r);
+  if (pos) {
+    const snap = cache.get('lista_' + from);
+    if (!snap) { send_(from, showList_(from, recentMovs_(from), 0, country, 'Estos son tus últimos movimientos. Elige el número y escríbeme otra vez, por ejemplo *borrar ' + pos[0] + '*:'), c); return 'borrar: lista primero'; }
+    const ids = JSON.parse(snap), byId = {};
+    userMovements_(from).forEach(m => { byId[m.id] = m; });
+    const movs = pos.map(n => byId[ids[n - 1]]).filter(Boolean);
+    const missing = pos.filter(n => !byId[ids[n - 1]]);
+    if (!movs.length) { send_(from, 'No encontré ' + (pos.length === 1 ? 'el número ' + pos[0] : 'esos números') + ' en tu lista (o ya los borraste). Escribe *movimientos* para verla de nuevo.', c); return 'borrar: número no encontrado'; }
+    const note = missing.length ? '\n(No encontré ' + (missing.length === 1 ? 'el ' : 'los ') + missing.join(', ') + ' en tu lista.)' : '';
+    return deleteOrConfirm_(from, user, movs, country, c, movs.length > MAX_BORRAR_SIN_CONFIRMAR, note);
+  }
+  // Por día y/o buscando por descripción, categoría o monto
+  const words = r.replace(/[$]/g, ' ').split(' ').filter(Boolean);
+  const dayWord = words.filter(w => dayFromWord_(w, today))[0];
+  const day = dayWord ? dayFromWord_(dayWord, today) : '';
+  const amounts = parseAmounts_(r);
+  const kws = words.filter(w => w !== dayWord && DEL_FILLER.indexOf(w) === -1 && STOP_WORDS.indexOf(w) === -1 && w.length > 2 && !/\d/.test(w) && !MULTIPLIERS.some(x => x.re.test(w)));
+  if (!day && !amounts.length && !kws.length) { send_(from, showList_(from, recentMovs_(from), 0, country, 'No entendí cuál borrar. Estos son tus últimos movimientos:'), c); return 'borrar: lista'; }
+  const cats = kws.map(w => categoryFromText_(w)).filter(Boolean);
+  const near = (a, b) => Math.abs(a - b) <= Math.max(0.01, Math.abs(b) * 0.001);
+  const found = recentMovs_(from).slice(0, 300).filter(m =>
+    (!day || m.fecha === day) &&
+    (!amounts.length || amounts.some(a => near(a, m.monto))) &&
+    (!kws.length || kws.some(w => norm_(m.descripcion).indexOf(w) > -1 || norm_(categoryById_(m.categoria).name).indexOf(w) > -1) || cats.some(ct => ct.id === m.categoria)));
+  if (!found.length) {
+    send_(from, 'No encontré movimientos con "' + r + '". Escribe *movimientos* para ver tu lista y borrar por número.', c); return 'borrar: sin coincidencias';
+  }
+  if (found.length === 1) return deleteOrConfirm_(from, user, found, country, c, false);
+  // Solo el día ("borrar los de hoy"): se confirma y se borran todos; si hay más criterios, se elige de la lista
+  if (day && !amounts.length && !kws.length) return deleteOrConfirm_(from, user, found, country, c, true);
+  send_(from, showList_(from, found, 0, country, 'Encontré ' + found.length + ' movimientos con eso. ¿Cuál borro?'), c);
+  return 'borrar: elegir';
+}
+
+/** Borra de una vez o pide confirmación ("sí"/"no") guardando lo pendiente 10 minutos. */
+function deleteOrConfirm_(from, user, movs, country, c, confirm, note) {
+  if (!confirm) { send_(from, deleteMovs_(from, user, movs.map(m => m.id), country) + (note || ''), c); return 'borrado ' + movs.length; }
+  CacheService.getScriptCache().put('borrar_' + from, JSON.stringify(movs.map(m => m.id)), 600);
+  send_(from, 'Voy a borrar ' + (movs.length === 1 ? 'este movimiento' : 'estos ' + movs.length + ' movimientos') + ':\n' + movs.slice(0, 15).map(m => '• ' + movLine_(m, country)).join('\n') +
+    (movs.length > 15 ? '\n• … y ' + (movs.length - 15) + ' más' : '') + (note || '') + '\n\nResponde *sí* para borrarlos o *no* para cancelar.', c);
+  return 'borrar: confirmar ' + movs.length;
+}
+
+/** Respuesta a una confirmación pendiente. Devuelve null si no había nada pendiente o el mensaje es otra cosa. */
+function pendingDelete_(t, from, user, country, c) {
+  const cache = CacheService.getScriptCache();
+  const pend = cache.get('borrar_' + from);
+  if (!pend) return null;
+  cache.put('borrar_' + from, '', 1);
+  t = t.replace(/[.,!]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (YES.test(t)) { send_(from, deleteMovs_(from, user, JSON.parse(pend), country), c); return 'borrado confirmado'; }
+  if (NO.test(t)) { send_(from, 'Listo, no borré nada.', c); return 'borrado cancelado'; }
+  return null;
+}
+
+function deleteMovs_(from, user, ids, country) {
+  const movs = userMovements_(from).filter(m => ids.indexOf(m.id) > -1);
+  if (!movs.length) return 'Esos movimientos ya no estaban.';
+  const sh = movSheet_();
+  movs.slice().sort((a, b) => b._row - a._row).forEach(m => sh.deleteRow(m._row));
+  if (ids.indexOf(String(user.ultimo_mov_id)) > -1) updateUser_(from, { ultimo_mov_id: '', ultimo_mov_ts: '' });
+  const shown = ids.map(id => movs.filter(m => m.id === id)[0]).filter(Boolean);
+  return (shown.length === 1 ? 'Eliminado: ' + movLine_(shown[0], country) + '.' : 'Eliminé ' + shown.length + ' movimientos:\n' + shown.slice(0, 15).map(m => '• ' + movLine_(m, country)).join('\n') + (shown.length > 15 ? '\n• … y ' + (shown.length - 15) + ' más' : '')) +
+    '\n\nEscribe *resumen* para ver cómo quedó tu mes.';
 }
 
 function recategorize_(waId, movId, cat) {
