@@ -1097,7 +1097,7 @@ function seg_(sl, x1, y1, x2, y2, color, weight, o) {
 
 function header_(sl, title, right) {
   sl.getBackground().setSolidFill(CARD.bg);
-  box_(sl, 10, 10, 700, 385, CARD.card, { round: true, line: CARD.green, lineAlpha: 0.35, lw: 1 });
+  box_(sl, 10, 10, 700, 385, CARD.card, { line: CARD.green, lineAlpha: 0.35, lw: 1 });
   box_(sl, 28, 26, 22, 22, CARD.green, { round: true });
   seg_(sl, 31, 37, 35.5, 37, CARD.bg, 1.6); seg_(sl, 35.5, 37, 38, 31.5, CARD.bg, 1.6); seg_(sl, 38, 31.5, 41.5, 42.5, CARD.bg, 1.6);
   seg_(sl, 41.5, 42.5, 43.5, 37, CARD.bg, 1.6); seg_(sl, 43.5, 37, 47, 37, CARD.bg, 1.6);
@@ -1121,7 +1121,7 @@ function drawCard_(sl, d, user, country, today) {
   const kw = (664 - 3 * 10) / 4;
   kpis.forEach((k, i) => {
     const x = 28 + i * (kw + 10);
-    box_(sl, x, 60, kw, 64, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+    box_(sl, x, 60, kw, 64, CARD.panel, { line: CARD.green, lineAlpha: 0.18 });
     txt_(sl, k[0], x + 4, 62, kw - 8, 18, { size: 8.5, color: CARD.muted });
     txt_(sl, k[1], x + 4, 77, kw - 8, 26, { size: k[1].length > 13 ? 14 : 18, bold: true, color: k[3], v: 'MIDDLE' });
     txt_(sl, k[2], x + 4, 102, kw - 8, 18, { size: 7.5, color: CARD.muted });
@@ -1129,9 +1129,9 @@ function drawCard_(sl, d, user, country, today) {
 
   // Gasto acumulado del mes
   const px = 28, py = 134, pw = 330, ph = 244;
-  box_(sl, px, py, pw, ph, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  box_(sl, px, py, pw, ph, CARD.panel, { line: CARD.green, lineAlpha: 0.18 });
   txt_(sl, 'Gasto acumulado del mes', px + 4, py + 4, pw - 8, 18, { size: 10.5, bold: true });
-  const ax = px + 16, ay = py + 40, aw = pw - 72, ah = ph - 76;
+  const ax = px + 16, ay = py + 40, aw = pw - 72, ah = ph - 84;
   const total = d.presupuestoTotal > 0 ? d.presupuestoTotal : 0;
   const max = Math.max(d.acumulado[d.acumulado.length - 1] || 0, total) * 1.08 || 1;
   [0, 0.5, 1].forEach(f => {
@@ -1161,12 +1161,12 @@ function drawCard_(sl, d, user, country, today) {
 
   // Dónde se va tu dinero
   const rx = 368, rw = 324;
-  box_(sl, rx, py, rw, ph, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  box_(sl, rx, py, rw, ph, CARD.panel, { line: CARD.green, lineAlpha: 0.18 });
   txt_(sl, 'Dónde se va tu dinero', rx + 4, py + 4, rw - 8, 18, { size: 10.5, bold: true });
   const rows = d.cats.slice(0, 6), maxShare = rows.length ? rows[0].share : 1;
   if (!rows.length) txt_(sl, 'Aún no registras gastos este mes.', rx + 4, py + 40, rw - 8, 20, { size: 9, color: CARD.muted });
   rows.forEach((r, i) => {
-    const y = py + 32 + i * 34;
+    const y = py + 30 + i * 31;
     const color = r.estado === 'excedido' ? CARD.red : r.estado === 'alerta' ? CARD.amber : CARD.green;
     txt_(sl, categoryById_(r.id).name, rx + 4, y, 190, 16, { size: 9, bold: true });
     txt_(sl, money(r.monto), rx + rw - 124, y, 120, 16, { size: 9, bold: true, align: 'END' });
@@ -1176,14 +1176,14 @@ function drawCard_(sl, d, user, country, today) {
     txt_(sl, r.presupuesto ? pct(r.uso) + ' de ' + money(r.presupuesto) + (r.estado === 'excedido' ? ' · te pasaste' : '') : pct(r.share) + ' del gasto',
       rx + 4, y + 21, rw - 8, 14, { size: 7, color: r.presupuesto && r.estado !== 'ok' ? color : CARD.muted });
   });
-  if (d.cats.length > 6) txt_(sl, '+ ' + (d.cats.length - 6) + ' categorías más en tu tablero', rx + 4, py + ph - 24, rw - 8, 18, { size: 7.5, color: CARD.muted });
+  if (d.cats.length > 6) txt_(sl, '+ ' + (d.cats.length - 6) + (d.cats.length === 7 ? ' categoría más' : ' categorías más') + ' en tu tablero', rx + 4, py + ph - 22, rw - 8, 18, { size: 7.5, color: CARD.muted });
   txt_(sl, 'Herramienta educativa; no es asesoría financiera.', 28, 380, 664, 14, { size: 6.5, color: CARD.muted, align: 'CENTER' });
 }
 
 function drawMovements_(sl, d, country) {
   header_(sl, 'Movimientos de ' + monthName_(d.mes), d.n + (d.n === 1 ? ' registro' : ' registros') + ' · ingresos ' + fmtMoney_(d.ingresos, country) + ' · gastos ' + fmtMoney_(d.gastos, country));
   const cols = [[28, 60, 'Fecha', 'START'], [90, 290, 'Descripción', 'START'], [382, 170, 'Categoría', 'START'], [556, 136, 'Monto', 'END']];
-  box_(sl, 28, 60, 664, 20, CARD.panel, { round: true, line: CARD.green, lineAlpha: 0.18 });
+  box_(sl, 28, 60, 664, 20, CARD.panel, { line: CARD.green, lineAlpha: 0.18 });
   const lines = [[], [], [], []];
   d.ultimos.forEach(m => {
     const ing = m.tipo === 'ingreso';
