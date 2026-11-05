@@ -1004,8 +1004,9 @@ function sendDashboard_(user, country, today, c, readOnly) {
 
 /** Arma una presentación temporal, saca la imagen de la primera hoja y el PDF completo, y la borra. */
 function renderDashboard_(d, user, country, today) {
-  const pres = SlidesApp.create('Pulso tablero ' + String(user.wa_id).slice(-4) + ' ' + today);
-  const id = pres.getId();
+  // Se crea con el servicio avanzado (no con SlidesApp.create) para que el permiso drive.file alcance a exportarla y borrarla.
+  const id = Slides.Presentations.create({ title: 'Pulso tablero ' + String(user.wa_id).slice(-4) + ' ' + today }).presentationId;
+  const pres = SlidesApp.openById(id);
   try {
     const s1 = pres.getSlides()[0];
     s1.getPageElements().forEach(e => e.remove());

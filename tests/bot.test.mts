@@ -34,18 +34,19 @@ function slidesMock(env: any) {
     return page;
   };
   env.SlidesApp = {
+    openById: (id: string) => { const deck = state.decks.find((d: any) => d.id === id); return deck.api; },
     create: (name: string) => {
       if (env.slidesFail) throw new Error('Slides no disponible');
       const deck: any = { id: 'deck' + (state.decks.length + 1), name, slides: [slide('p1')], closed: false };
       deck.slides[0].els.push({ kind: 'placeholder', remove() { deck.slides[0].els.shift(); } });
       state.decks.push(deck);
-      return { getId: () => deck.id, getSlides: () => deck.slides, appendSlide: () => { const s = slide('p' + (deck.slides.length + 1)); deck.slides.push(s); return s; }, saveAndClose: () => { deck.closed = true; } };
+      return deck.api = { getId: () => deck.id, getSlides: () => deck.slides, appendSlide: () => { const s = slide('p' + (deck.slides.length + 1)); deck.slides.push(s); return s; }, saveAndClose: () => { deck.closed = true; } };
     },
     ShapeType: { RECTANGLE: 'RECTANGLE', ROUND_RECTANGLE: 'ROUND_RECTANGLE', ELLIPSE: 'ELLIPSE' }, LineCategory: { STRAIGHT: 'STRAIGHT' }, DashStyle: { DASH: 'DASH' },
     ParagraphAlignment: { START: 'START', CENTER: 'CENTER', END: 'END' }, ContentAlignment: { TOP: 'TOP', MIDDLE: 'MIDDLE' }, PredefinedLayout: { BLANK: 'BLANK' },
   };
   state.trashed = env.trashed;
-  env.Slides = { Presentations: { Pages: { getThumbnail: (p: string, pg: string, o: any) => { assert.deepEqual(JSON.parse(JSON.stringify(o)), { 'thumbnailProperties.thumbnailSize': 'LARGE', 'thumbnailProperties.mimeType': 'PNG' }); return { contentUrl: 'https://thumb.test/' + p + '/' + pg }; } } } };
+  env.Slides = { Presentations: { create: (o: any) => ({ presentationId: env.SlidesApp.create(o.title).getId() }), Pages: { getThumbnail: (p: string, pg: string, o: any) => { assert.deepEqual(JSON.parse(JSON.stringify(o)), { 'thumbnailProperties.thumbnailSize': 'LARGE', 'thumbnailProperties.mimeType': 'PNG' }); return { contentUrl: 'https://thumb.test/' + p + '/' + pg }; } } } };
   env.ScriptApp = { getOAuthToken: () => 'token-google' };
   return state;
 }
