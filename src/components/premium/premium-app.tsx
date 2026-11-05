@@ -59,6 +59,18 @@ async function postPerfil(token: string, perfil: Perfil) {
   }
 }
 
+/** Borra movimientos desde el tablero (con el enlace personal). */
+async function postBorrar(token: string, ids: string[]) {
+  const body = JSON.stringify({ action: "borrar", t: token, ids })
+  try {
+    const j = await (await fetch(config.botScriptUrl, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body })).json()
+    if (!j.ok) throw new Error(j.error || "No pudimos borrar.")
+  } catch (e) {
+    if (e instanceof TypeError) { await fetch(config.botScriptUrl, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body }); return }
+    throw e
+  }
+}
+
 function demoPerfil(k: number): Perfil {
   const m = (usd: number) => { const x = usd * k; const s = Math.pow(10, Math.max(0, Math.floor(Math.log10(x)) - 1)); return Math.round(x / s) * s }
   const y = new Date().getFullYear()
@@ -152,7 +164,22 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
   }
 
   const today = data.hoy || todayIso()
-  const movs = data.movimientos
+  const [removed, setRemoved] = React.useState<Set<string>>(() => new Set())
+  const [delMsg, setDelMsg] = React.useState<string | null>(null)
+  const movs = removed.size ? data.movimientos.filter((m) => !removed.has(m.id)) : data.movimientos
+  const removeMovs = async (ids: string[]) => {
+    setRemoved((prev) => new Set([...prev, ...ids]))
+    if (demo || !token) { setDelMsg("En el ejemplo se borra solo en tu pantalla."); return }
+    setDelMsg("Borrando…")
+    try {
+      await postBorrar(token, ids)
+      setDelMsg(ids.length === 1 ? "Movimiento borrado ✓" : `${ids.length} movimientos borrados ✓`)
+      onMonth(data.mes)
+    } catch (e) {
+      setRemoved((prev) => { const n = new Set(prev); ids.forEach((id) => n.delete(id)); return n })
+      setDelMsg((e as Error).message)
+    }
+  }
   const s = summarizeMovements(movs)
   const budget = budgetStatus(movs, perfil.presupuestos)
   const fixed = fixedPayments(perfil.pagosFijos, movs, today)
@@ -224,7 +251,7 @@ function Board({ data, pais, fmt, demo, token, onMonth }: { data: Payload; pais:
       )}
       {tab === "recomendaciones" && <Recomendaciones tips={tips} recs={recs} fmt={fmt} pais={pais} />}
       {tab === "tasas" && <Tasas pais={pais} fmt={fmt} />}
-      {tab === "movimientos" && <Movimientos movs={movs} fmt={fmt} />}
+      {tab === "movimientos" && <Movimientos movs={movs} fmt={fmt} canDelete={!consulta} onDelete={removeMovs} msg={delMsg} />}
       {tab === "datos" && <Datos perfil={perfil} update={update} fmt={fmt} />}
 
       {(dirty || saveMsg) && (
@@ -596,29 +623,91 @@ function Tasas({ pais, fmt }: { pais: string; fmt: Fmt }) {
 
 /* ---------------- Movimientos ---------------- */
 
-function Movimientos({ movs, fmt }: { movs: Movement[]; fmt: Fmt }) {
+function Movimientos({ movs, fmt, canDelete, onDelete, msg }: { movs: Movement[]; fmt: Fmt; canDelete: boolean; onDelete: (ids: string[]) => void; msg: string | null }) {
+  const [selecting, setSelecting] = React.useState(false)
+  const [sel, setSel] = React.useState<Set<string>>(() => new Set())
+  const [ask, setAsk] = React.useState<string | null>(null) // id del movimiento a confirmar, o "sel" para los seleccionados
   const days = new Map<string, Movement[]>()
   movs.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).forEach((m) => days.set(m.fecha, [...(days.get(m.fecha) || []), m]))
+  const toggle = (ids: string[], on: boolean) => setSel((prev) => { const n = new Set(prev); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n })
+  const chosen = movs.filter((m) => sel.has(m.id)).map((m) => m.id)
+  const stop = () => { setSelecting(false); setSel(new Set()); setAsk(null) }
+  const go = (ids: string[]) => { onDelete(ids); setAsk(null); setSel(new Set()); if (ids.length > 1) setSelecting(false) }
   return (
     <BentoCard>
-      <h2 className="text-[17px] font-bold tracking-tight">Movimientos del mes</h2>
-      <p className="text-sm text-muted-foreground">Para corregir o borrar, escríbele al asistente (“borrar”, o el nombre de la categoría correcta).</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[17px] font-bold tracking-tight">Movimientos del mes</h2>
+          <p className="text-sm text-muted-foreground">
+            {canDelete ? "Toca la papelera para borrar uno, o “Seleccionar” para borrar varios. También puedes escribirle al asistente “movimientos”." : "Para corregir una categoría, escríbele al asistente el nombre de la correcta."}
+          </p>
+        </div>
+        {canDelete && movs.length > 0 && (
+          <Button type="button" size="sm" variant="outline" onClick={() => (selecting ? stop() : setSelecting(true))} aria-pressed={selecting}>
+            {selecting ? "Cancelar" : <><ListChecks /> Seleccionar</>}
+          </Button>
+        )}
+      </div>
+      {msg && <p role="status" className="mt-3 text-sm text-ink-2">{msg}</p>}
       <div className="mt-4 grid gap-4">
-        {[...days.entries()].map(([day, list]) => (
-          <div key={day}>
-            <div className="mb-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground">{Number(day.slice(8, 10))} de {MONTHS[Number(day.slice(5, 7)) - 1]}</div>
-            <ul className="divide-y rounded-2xl border">
-              {list.map((m) => { const c = botCategory(m.categoria); return (
-                <li key={m.id} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
-                  <span className="flex min-w-0 items-center gap-2.5"><i className="size-2.5 shrink-0 rounded-[3px]" style={{ background: c.color }} /><span className="min-w-0"><span className="block truncate font-semibold">{m.descripcion || c.name}</span><span className="block text-xs text-muted-foreground">{c.name}</span></span></span>
-                  <span className={cn("shrink-0 font-num font-bold", m.tipo === "ingreso" && "text-verde")}>{m.tipo === "ingreso" ? "+" : "−"}{fmt.full(m.monto)}</span>
-                </li>
-              ) })}
-            </ul>
-          </div>
-        ))}
+        {[...days.entries()].map(([day, list]) => {
+          const allOn = list.every((m) => sel.has(m.id))
+          return (
+            <div key={day}>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{Number(day.slice(8, 10))} de {MONTHS[Number(day.slice(5, 7)) - 1]}</span>
+                {selecting && <button type="button" onClick={() => toggle(list.map((m) => m.id), !allOn)} className="text-xs font-semibold text-primary hover:underline">{allOn ? "Quitar el día" : "Elegir todo el día"}</button>}
+              </div>
+              <ul className="divide-y rounded-2xl border">
+                {list.map((m) => { const c = botCategory(m.categoria); const on = sel.has(m.id); return (
+                  <li key={m.id} className={cn("px-3.5 py-2.5 text-sm transition-colors", on && "bg-primary/[0.07]")}>
+                    <div className="flex items-center justify-between gap-3">
+                      <label className={cn("flex min-w-0 flex-1 items-center gap-2.5", selecting && "cursor-pointer")}>
+                        {selecting && <input type="checkbox" checked={on} onChange={(e) => toggle([m.id], e.target.checked)} className="size-4 shrink-0 accent-[var(--primary)]" aria-label={`Elegir ${m.descripcion || c.name}`} />}
+                        <i className="size-2.5 shrink-0 rounded-[3px]" style={{ background: c.color }} />
+                        <span className="min-w-0"><span className="block truncate font-semibold">{m.descripcion || c.name}</span><span className="block text-xs text-muted-foreground">{c.name}</span></span>
+                      </label>
+                      <span className={cn("shrink-0 font-num font-bold", m.tipo === "ingreso" && "text-verde")}>{m.tipo === "ingreso" ? "+" : "−"}{fmt.full(m.monto)}</span>
+                      {canDelete && !selecting && (
+                        <button type="button" onClick={() => setAsk(ask === m.id ? null : m.id)} aria-label={`Borrar ${m.descripcion || c.name}`}
+                          className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-rojo/10 hover:text-rojo">
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
+                    </div>
+                    {ask === m.id && (
+                      <div className="mt-2 flex flex-wrap items-center justify-end gap-2 text-xs">
+                        <span className="mr-auto text-ink-2">¿Borrar este movimiento? No se puede deshacer.</span>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setAsk(null)}>No</Button>
+                        <Button type="button" size="sm" onClick={() => go([m.id])} className="border-rojo bg-none bg-rojo text-white shadow-none hover:shadow-none">Sí, borrar</Button>
+                      </div>
+                    )}
+                  </li>
+                ) })}
+              </ul>
+            </div>
+          )
+        })}
         {!movs.length && <p className="text-sm text-muted-foreground">Aún no hay movimientos este mes.</p>}
       </div>
+      {selecting && (
+        <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-popover px-4 py-3 text-sm shadow-[0_0_30px_-10px_var(--glow)]">
+          {ask === "sel" ? (
+            <>
+              <span className="min-w-0 flex-1">¿Borrar {chosen.length === 1 ? "1 movimiento" : `${chosen.length} movimientos`}? No se puede deshacer.</span>
+              <span className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => setAsk(null)}>No</Button>
+                <Button type="button" size="sm" onClick={() => go(chosen)} className="border-rojo bg-none bg-rojo text-white shadow-none hover:shadow-none">Sí, borrar</Button>
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="min-w-0 flex-1">{chosen.length ? `${chosen.length} seleccionado${chosen.length === 1 ? "" : "s"}` : "Elige los movimientos que quieres borrar"}</span>
+              <Button type="button" size="sm" disabled={!chosen.length} onClick={() => setAsk("sel")} className="border-rojo bg-none bg-rojo text-white shadow-none hover:shadow-none"><Trash2 /> Borrar</Button>
+            </>
+          )}
+        </div>
+      )}
     </BentoCard>
   )
 }

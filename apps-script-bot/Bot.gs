@@ -366,6 +366,10 @@ function doPost(e) {
     try { return json_(savePerfilFromWeb_(early.t, early.perfil)); }
     catch (err) { logError_(err, 'perfil'); return json_({ ok: false, error: 'No pudimos guardar. Intenta de nuevo.' }); }
   }
+  if (early && early.action === 'borrar') {
+    try { return json_(deleteFromWeb_(early.t, early.ids)); }
+    catch (err) { logError_(err, 'borrar desde el tablero'); return json_({ ok: false, error: 'No pudimos borrar. Intenta de nuevo.' }); }
+  }
   if (!c.RELAY_SECRET || p.k !== c.RELAY_SECRET) return json_({ ok: false, error: 'No autorizado' });
   const lock = LockService.getScriptLock();
   lock.waitLock(25000);
@@ -1531,12 +1535,30 @@ function pendingDelete_(t, from, user, country, c) {
   return null;
 }
 
-function deleteMovs_(from, user, ids, country) {
+/** Borra los movimientos de esa persona con esos ids (los de otros números se ignoran) y devuelve los borrados. */
+function removeMovs_(from, user, ids) {
   const movs = userMovements_(from).filter(m => ids.indexOf(m.id) > -1);
-  if (!movs.length) return 'Esos movimientos ya no estaban.';
   const sh = movSheet_();
   movs.slice().sort((a, b) => b._row - a._row).forEach(m => sh.deleteRow(m._row));
-  if (ids.indexOf(String(user.ultimo_mov_id)) > -1) updateUser_(from, { ultimo_mov_id: '', ultimo_mov_ts: '' });
+  if (movs.length && ids.indexOf(String(user.ultimo_mov_id)) > -1) updateUser_(from, { ultimo_mov_id: '', ultimo_mov_ts: '' });
+  return movs;
+}
+
+/** Borrar desde el tablero web: se autentica con el enlace personal, como guardar el perfil. */
+function deleteFromWeb_(token, ids) {
+  const user = getUserByToken_(token);
+  if (!user) return { ok: false, error: 'Este enlace no es válido o fue cambiado.' };
+  const acc = accessOf_(user, cfg_());
+  if (acc === 'vencida' || acc === 'ninguna' || acc === 'demo_fin') return { ok: false, error: 'Tu tablero está en modo consulta: renueva tu suscripción para borrar movimientos.' };
+  const list = (Array.isArray(ids) ? ids : []).map(String).filter(id => /^[A-Za-z0-9_-]{1,40}$/.test(id)).slice(0, 200);
+  if (!list.length) return { ok: false, error: 'No elegiste movimientos para borrar.' };
+  const gone = removeMovs_(String(user.wa_id), user, list);
+  return { ok: true, borrados: gone.length };
+}
+
+function deleteMovs_(from, user, ids, country) {
+  const movs = removeMovs_(from, user, ids);
+  if (!movs.length) return 'Esos movimientos ya no estaban.';
   const shown = ids.map(id => movs.filter(m => m.id === id)[0]).filter(Boolean);
   return (shown.length === 1 ? 'Eliminado: ' + movLine_(shown[0], country) + '.' : 'Eliminé ' + shown.length + ' movimientos:\n' + shown.slice(0, 15).map(m => '• ' + movLine_(m, country)).join('\n') + (shown.length > 15 ? '\n• … y ' + (shown.length - 15) + ' más' : '')) +
     '\n\nEscribe *resumen* para ver cómo quedó tu mes.';

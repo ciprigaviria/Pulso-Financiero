@@ -800,3 +800,28 @@ const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets,
   x = s4(B, 'me equivoqué en los dos últimos, quítalos porfa'); assert.ok(x.replies[0].startsWith('Voy a borrar estos 2'), x.replies[0]);
   console.log('✓ Borrar: lista numerada, por número, varios, rangos, últimos N, por día, buscando por palabra o monto, confirmación y con IA');
 }
+
+// ---- 17. Borrar desde el tablero web ----
+{
+  const { say, sheets, bot } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec', BETA_NUMEROS: '573001231234' });
+  const W = '573001231234', O = '573009998888';
+  say(W, 'hola');
+  const add = (id: string, wa: string) => sheets.Movimientos.push([id, wa, '2026-11-04', 'gasto', 1000, 'COP', 'otros', 'X ' + id, '', 'x' + id, '', 'prueba']);
+  add('w1', W); add('w2', W); add('w3', W); add('o1', O);
+  const post = (body: any) => bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'borrar', ...body }) } });
+  const token = getU(sheets, W, 'token');
+  let r = post({ t: token, ids: ['w1', 'w3', 'o1', '<script>'] });
+  assert.deepEqual(JSON.parse(JSON.stringify(r)), { ok: true, borrados: 2 });
+  assert.deepEqual(sheets.Movimientos.slice(1).map((x: any[]) => x[0]), ['w2', 'o1'], 'solo borra los suyos');
+  assert.equal(post({ t: 'x'.repeat(32), ids: ['w2'] }).ok, false, 'enlace inválido');
+  assert.equal(post({ t: token, ids: [] }).ok, false);
+  assert.equal(post({ t: token, ids: 'w2' }).ok, false);
+  // En modo consulta no se borra
+  const { say: s2, sheets: sh2, bot: b2, env: e2 } = makeEnv({ PAGOS_URL: 'https://pagos.test/exec' });
+  e2.pagos = () => ({ ok: true, estado: 'activa' });
+  s2(O, 'activar ABCD1234-XYZ'); sh2.Movimientos.push(['k1', O, '2026-11-04', 'gasto', 1000, 'COP', 'otros', 'K', '', 'xk1', '', 'prueba']);
+  setU(sh2, O, 'acceso', 'vencida'); setU(sh2, O, 'acceso_revisado', new Date().toISOString()); setU(sh2, O, 'vence', '2026-11-01');
+  r = b2.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'borrar', t: getU(sh2, O, 'token'), ids: ['k1'] }) } });
+  assert.equal(r.ok, false); assert.ok(r.error.includes('modo consulta')); assert.equal(sh2.Movimientos.length, 2);
+  console.log('✓ Borrar desde el tablero: solo movimientos propios, enlace válido y nunca en modo consulta');
+}
