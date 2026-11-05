@@ -44,7 +44,8 @@ function slidesMock(env: any) {
     ShapeType: { RECTANGLE: 'RECTANGLE', ROUND_RECTANGLE: 'ROUND_RECTANGLE', ELLIPSE: 'ELLIPSE' }, LineCategory: { STRAIGHT: 'STRAIGHT' }, DashStyle: { DASH: 'DASH' },
     ParagraphAlignment: { START: 'START', CENTER: 'CENTER', END: 'END' }, ContentAlignment: { TOP: 'TOP', MIDDLE: 'MIDDLE' }, PredefinedLayout: { BLANK: 'BLANK' },
   };
-  env.DriveApp = { getFileById: (id: string) => ({ getAs: (t: string) => { assert.equal(t, 'application/pdf'); return blob('pdf:' + id); }, setTrashed: (v: boolean) => { if (v) state.trashed.push(id); } }) };
+  state.trashed = env.trashed;
+  env.Slides = { Presentations: { Pages: { getThumbnail: (p: string, pg: string, o: any) => { assert.deepEqual(JSON.parse(JSON.stringify(o)), { 'thumbnailProperties.thumbnailSize': 'LARGE', 'thumbnailProperties.mimeType': 'PNG' }); return { contentUrl: 'https://thumb.test/' + p + '/' + pg }; } } } };
   env.ScriptApp = { getOAuthToken: () => 'token-google' };
   return state;
 }
@@ -69,6 +70,7 @@ function makeEnv(extraProps: Record<string, string> = {}) {
   const env: any = {
     llm: null as null | ((body: any) => any),
     uploads: [] as any[],
+    trashed: [] as string[],
     mediaFail: false,
     media: {} as Record<string, { mime: string; size: number }>,
     pagos: (_k: string): any => ({ ok: false, estado: 'invalida' }),
@@ -99,8 +101,13 @@ function makeEnv(extraProps: Record<string, string> = {}) {
           env.uploads.push({ type: o.payload.type, blob: o.payload.file });
           return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ id: 'up' + env.uploads.length }) };
         }
-        const thumb = url.match(/^https:\/\/slides\.googleapis\.com\/v1\/presentations\/(\w+)\/pages\/(\w+)\/thumbnail\?thumbnailProperties\.thumbnailSize=LARGE&thumbnailProperties\.mimeType=PNG$/);
-        if (thumb) { assert.equal(o.headers.Authorization, 'Bearer token-google'); return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ contentUrl: 'https://thumb.test/' + thumb[1] + '/' + thumb[2] }) }; }
+        const drv = url.match(/^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/(\w+)(\/export\?mimeType=application%2Fpdf)?$/);
+        if (drv) {
+          assert.equal(o.headers.Authorization, 'Bearer token-google');
+          if (drv[2]) return { getResponseCode: () => 200, getBlob: () => blob('pdf:' + drv[1]) };
+          assert.equal(o.method, 'patch'); assert.deepEqual(JSON.parse(o.payload), { trashed: true }); env.trashed.push(drv[1]);
+          return { getResponseCode: () => 200, getContentText: () => '{}' };
+        }
         if (url.startsWith('https://thumb.test/')) return { getResponseCode: () => 200, getBlob: () => blob('png:' + url) };
         const media = url.match(/^https:\/\/graph\.facebook\.com\/v26\.0\/(\d+)$/);
         if (media) {
@@ -621,7 +628,7 @@ const setU = (sheets: any, waId: string, k: string, v: any) => { userRow(sheets,
   bot.doPost({ parameter: {}, postData: { contents: JSON.stringify({ action: 'perfil', t: token, perfil: { presupuestos: { comida: 200000, transporte: 100000 } } }) } });
 
   x = say(T, 'tablero');
-  assert.equal(x.all.length, 2, x.replies.join(' || '));
+  assert.equal(x.all.length, 2, x.replies.join(' || ') + JSON.stringify(sheets.Errores));
   assert.ok(x.replies[0].startsWith('IMAGEN up1: Tu tablero · noviembre 2026') && x.replies[0].includes('https://pulso.test/tablero/?t=' + token), x.replies[0]);
   assert.ok(x.replies[1].startsWith('DOCUMENTO up2 Pulso - Noviembre 2026.pdf'), x.replies[1]);
   assert.deepEqual(env.uploads.map((u: any) => [u.type, u.blob.type]), [['image/png', 'image/png'], ['application/pdf', 'application/pdf']]);

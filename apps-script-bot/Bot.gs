@@ -982,7 +982,7 @@ function sendDashboard_(user, country, today, c, readOnly) {
   const from = String(user.wa_id), link = userLink_(user, c);
   const head = readOnly ? 'Tu tablero (modo consulta)' : 'Tu tablero';
   const onlyLink = note => { send_(from, head + ':\n' + link + (note ? '\n\n' + note : ''), c); };
-  if (String(c.TABLERO_IMAGEN || 'si').toLowerCase() === 'no' || !c.WA_TOKEN || !c.WA_PHONE_NUMBER_ID || typeof SlidesApp === 'undefined') { onlyLink(); return 'enlace'; }
+  if (String(c.TABLERO_IMAGEN || 'si').toLowerCase() === 'no' || !c.WA_TOKEN || !c.WA_PHONE_NUMBER_ID || typeof SlidesApp === 'undefined' || typeof Slides === 'undefined') { onlyLink(); return 'enlace'; }
   const d = cardData_(userMovements_(from), getPerfil_(from), today);
   if (!d.n) { onlyLink('Aún no tienes movimientos este mes. Cuando registres el primero, te mando tu tablero en imagen y PDF.'); return 'enlace (sin movimientos)'; }
   const cache = CacheService.getScriptCache(), key = 'tab_' + from + '_' + today, used = Number(cache.get(key) || 0);
@@ -1014,20 +1014,31 @@ function renderDashboard_(d, user, country, today) {
     drawMovements_(s2, d, country);
     const pageId = s1.getObjectId();
     pres.saveAndClose();
-    const png = slideThumbnail_(id, pageId).setName('tablero.png');
-    const pdf = DriveApp.getFileById(id).getAs('application/pdf').setName('tablero.pdf');
-    return { png: png, pdf: pdf };
+    return { png: slideThumbnail_(id, pageId).setName('tablero.png'), pdf: driveExportPdf_(id).setName('tablero.pdf') };
   } finally {
-    try { DriveApp.getFileById(id).setTrashed(true); } catch (err) { logError_(err, 'borrar presentación temporal'); }
+    try { driveTrash_(id); } catch (err) { logError_(err, 'borrar presentación temporal'); }
   }
 }
 
+/* Drive por REST: el permiso drive.file alcanza para los archivos que crea el propio bot. */
+const DRIVE_API = 'https://www.googleapis.com/drive/v3/files/';
+function googleAuth_() { return { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }; }
+
+function driveExportPdf_(id) {
+  const r = UrlFetchApp.fetch(DRIVE_API + id + '/export?mimeType=application%2Fpdf', { headers: googleAuth_(), muteHttpExceptions: true });
+  if (r.getResponseCode() >= 300) throw new Error('PDF: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+  return r.getBlob();
+}
+
+function driveTrash_(id) {
+  const r = UrlFetchApp.fetch(DRIVE_API + id, { method: 'patch', contentType: 'application/json', headers: googleAuth_(), payload: JSON.stringify({ trashed: true }), muteHttpExceptions: true });
+  if (r.getResponseCode() >= 300) throw new Error('Papelera: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
+}
+
+/** Imagen de una hoja con el servicio avanzado de Slides (Servicios → Google Slides API). */
 function slideThumbnail_(presId, pageId) {
-  const auth = { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() };
-  const r = UrlFetchApp.fetch('https://slides.googleapis.com/v1/presentations/' + presId + '/pages/' + pageId +
-    '/thumbnail?thumbnailProperties.thumbnailSize=LARGE&thumbnailProperties.mimeType=PNG', { headers: auth, muteHttpExceptions: true });
-  if (r.getResponseCode() >= 300) throw new Error('Miniatura: ' + r.getResponseCode() + ' ' + r.getContentText().slice(0, 300));
-  const img = UrlFetchApp.fetch(JSON.parse(r.getContentText()).contentUrl, { muteHttpExceptions: true });
+  const t = Slides.Presentations.Pages.getThumbnail(presId, pageId, { 'thumbnailProperties.thumbnailSize': 'LARGE', 'thumbnailProperties.mimeType': 'PNG' });
+  const img = UrlFetchApp.fetch(t.contentUrl, { muteHttpExceptions: true });
   if (img.getResponseCode() >= 300) throw new Error('Imagen: ' + img.getResponseCode());
   return img.getBlob();
 }
@@ -1463,7 +1474,14 @@ function probarTablero() {
   ].map((r, i) => ({ id: 'p' + i, fecha: day(r[4]), tipo: r[0], monto: r[1], categoria: r[2], descripcion: r[3] }));
   const perfil = { presupuestos: { mercado: 600000, comida: 200000, transporte: 300000, ocio: 150000 } };
   const r = renderDashboard_(cardData_(movs, perfil, today), { wa_id: '570000000000', nombre: 'Ana Prueba' }, country, today);
-  const png = DriveApp.createFile(r.png.setName('Pulso prueba tablero.png')), pdf = DriveApp.createFile(r.pdf.setName('Pulso prueba tablero.pdf'));
-  console.log('Imagen: ' + png.getId() + ' · PDF: ' + pdf.getId());
-  return { png: png.getId(), pdf: pdf.getId() };
+  const save = (blob, name, mime) => {
+    const boundary = 'pulso' + Date.now();
+    const body = Utilities.newBlob('--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: name }) +
+      '\r\n--' + boundary + '\r\nContent-Type: ' + mime + '\r\n\r\n').getBytes().concat(blob.getBytes()).concat(Utilities.newBlob('\r\n--' + boundary + '--').getBytes());
+    const res = UrlFetchApp.fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'post', contentType: 'multipart/related; boundary=' + boundary, headers: googleAuth_(), payload: body });
+    return JSON.parse(res.getContentText()).id;
+  };
+  const out = { png: save(r.png, 'Pulso prueba tablero.png', 'image/png'), pdf: save(r.pdf, 'Pulso prueba tablero.pdf', 'application/pdf') };
+  console.log('En tu Drive: imagen ' + out.png + ' · PDF ' + out.pdf);
+  return out;
 }
